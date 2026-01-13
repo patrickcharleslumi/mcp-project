@@ -1,6 +1,6 @@
 # Integration MCP Server
 
-A Model Context Protocol (MCP) server that provides semantic tools for MSA optimization workflows, sitting above the Luminance API.
+A Model Context Protocol (MCP) server that provides semantic tools for MSA optimization workflows, sitting above the Luminance API. Designed to run in **Prismatic** and integrate with **Salesforce MCP server**.
 
 ## Overview
 
@@ -8,13 +8,20 @@ This MCP server exposes semantic tools to an agent/LLM for:
 - Finding similar signed MSAs
 - Suggesting clause fallback positions
 - Estimating signing likelihood
-- Getting company context
+- Getting company context (with optional Salesforce MCP integration)
 
 ## Architecture
 
 ```
-Luminance UI/API → Agent/Orchestrator (LLM) → MCP Client → Local MCP Server → Luminance APIs
+Agent/LLM → Prismatic MCP Flow Server → Integration MCP Server → Luminance API
+                                                              → Salesforce MCP Server (optional)
 ```
+
+This MCP server is designed to:
+- Run within **Prismatic** as an agent flow or custom MCP server
+- Connect to **Prismatic's MCP flow server** infrastructure
+- Optionally integrate with **Salesforce MCP server** for company context enrichment
+- Provide semantic tools for MSA optimization workflows
 
 ## Installation
 
@@ -93,15 +100,73 @@ ENABLE_SIGNING_LIKELIHOOD=true
 
 **Note:** Tokens typically expire after 3600 seconds (1 hour). For production, you may want to implement token refresh logic.
 
+### Step 4: Configure Prismatic (Optional)
+
+If running in Prismatic or connecting to Prismatic's MCP infrastructure:
+
+```env
+# Prismatic API key (for GraphQL API access)
+PRISMATIC_API_KEY=your-api-key-here
+
+# Prismatic base URL (default: https://app.prismatic.io)
+PRISMATIC_BASE_URL=https://app.prismatic.io
+
+# Prismatic region (us, eu-west-1, etc.)
+PRISMATIC_REGION=us
+```
+
+### Step 5: Configure Salesforce MCP (Optional)
+
+To enable company context enrichment via Salesforce MCP server:
+
+```env
+# Enable Salesforce MCP integration
+SALESFORCE_MCP_ENABLED=true
+
+# Optional: Custom Salesforce MCP endpoint (if not using default)
+# SALESFORCE_MCP_ENDPOINT=http://localhost:3000
+```
+
+**Note:** Salesforce MCP server authentication is handled separately by the Salesforce MCP server. See [Salesforce MCP Repository](https://github.com/salesforcecli/mcp) for setup instructions.
+
 ## Running the Server
 
-### Stdio Transport (for MCP clients)
+### Local Development (Stdio Transport)
 
 ```bash
 python -m integration_mcp.server
 ```
 
 The server communicates via stdio using JSON-RPC 2.0.
+
+### Prismatic Deployment
+
+This MCP server is designed to run within **Prismatic**. See [Prismatic MCP Documentation](https://prismatic.io/docs/ai/model-context-protocol/) for details.
+
+#### Option 1: Deploy as Prismatic Agent Flow
+
+1. Create an agent flow in Prismatic with invocation schemas matching your tool definitions
+2. Configure the flow to execute this MCP server
+3. The flow will be exposed via Prismatic's MCP flow server endpoint
+4. Connect AI agents to: `mcp.prismatic.io/mcp` (or your region-specific endpoint)
+
+#### Option 2: Connect to Prismatic's MCP Flow Server
+
+If you want to use Prismatic's hosted MCP flow server:
+- Configure `PRISMATIC_API_KEY` in your `.env` file
+- The server can query Prismatic's GraphQL API to discover agent flows
+- See [Prismatic MCP Documentation](https://prismatic.io/docs/ai/model-context-protocol/) for connection details
+
+#### Prismatic Regions
+
+Prismatic MCP endpoints by region:
+- US Commercial (default): `mcp.prismatic.io/mcp`
+- US GovCloud: `mcp.us-gov-west-1.prismatic.io/mcp`
+- Europe (Ireland): `mcp.eu-west-1.prismatic.io/mcp`
+- Europe (London): `mcp.eu-west-2.prismatic.io/mcp`
+- Canada (Central): `mcp.ca-central-1.prismatic.io/mcp`
+- Australia (Sydney): `mcp.ap-southeast-2.prismatic.io/mcp`
+- Africa (Cape Town): `mcp.af-south-1.prismatic.io/mcp`
 
 ### Testing Locally
 

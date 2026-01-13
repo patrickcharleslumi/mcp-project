@@ -11,23 +11,37 @@ The Integration MCP Server provides semantic tools for MSA optimization workflow
 │  Agent/LLM      │
 │  Orchestrator   │
 └────────┬────────┘
-         │ JSON-RPC 2.0 (stdio)
+         │ MCP Protocol
          │
-┌────────▼────────┐
-│  MCP Client     │
-└────────┬────────┘
+┌────────▼──────────────────────────────┐
+│  Prismatic MCP Flow Server            │
+│  (Hosted or Custom)                    │
+└────────┬───────────────────────────────┘
+         │ JSON-RPC 2.0 (stdio)
          │
 ┌────────▼────────┐
 │  MCP Server      │
 │  (integration-mcp)│
+│  (Runs in Prismatic)│
 └────────┬────────┘
-         │ HTTP/REST
          │
-┌────────▼────────┐
-│ Luminance API   │
-│ (v1 & v2)       │
-└─────────────────┘
+    ┌────┴────┐
+    │         │
+    │         │
+┌───▼───┐ ┌──▼──────────┐
+│Luminance│ │ Salesforce │
+│  API   │ │ MCP Server │
+│(v1 & v2)│ │            │
+└────────┘ └────────────┘
 ```
+
+### Deployment Context
+
+This MCP server is designed to run **within Prismatic** as an agent flow or custom MCP server. It can:
+- Be deployed as a Prismatic agent flow with invocation schemas
+- Connect to Prismatic's hosted MCP flow server
+- Act as a bridge between Prismatic's MCP infrastructure and Luminance API
+- Connect to Salesforce MCP server for company context enrichment
 
 ## Components
 
@@ -75,6 +89,8 @@ Four semantic tools:
 - Environment-based configuration
 - Feature flags
 - Rate limits and timeouts
+- Prismatic API configuration (optional, for Prismatic-hosted deployment)
+- Salesforce MCP server configuration (optional, for company context enrichment)
 
 ### 5. Logging (`logger.py`)
 
@@ -178,10 +194,40 @@ Four semantic tools:
 python -m integration_mcp.server
 ```
 
+### Prismatic Deployment
+
+This MCP server is designed to run within Prismatic. There are two deployment options:
+
+#### Option 1: Prismatic Agent Flow (Recommended)
+1. Create an agent flow in Prismatic with invocation schemas matching the tool definitions
+2. Configure the flow to execute this MCP server as a subprocess
+3. The flow will be exposed via Prismatic's MCP flow server endpoint
+4. Connect AI agents to Prismatic's MCP endpoint: `mcp.prismatic.io/mcp` (or region-specific endpoint)
+
+#### Option 2: Custom MCP Server in Prismatic
+1. Deploy this server as a Prismatic integration component
+2. Configure it to connect to Prismatic's GraphQL API to discover agent flows
+3. Expose tools via Prismatic's MCP infrastructure
+
+### Prismatic Configuration
+
+When running in Prismatic, configure:
+- `PRISMATIC_API_KEY`: API key for Prismatic GraphQL API (if using Option 2)
+- `PRISMATIC_BASE_URL`: Prismatic stack base URL (default: `https://app.prismatic.io`)
+- `PRISMATIC_REGION`: Region for MCP endpoint (us, eu-west-1, etc.)
+
+### Salesforce MCP Integration
+
+The server can connect to Salesforce MCP server for company context enrichment:
+- `SALESFORCE_MCP_ENABLED`: Enable Salesforce MCP integration (default: false)
+- `SALESFORCE_MCP_ENDPOINT`: Salesforce MCP server endpoint (if custom)
+- Salesforce authentication configured via Salesforce MCP server
+
 ### Production
-- Run as subprocess from orchestrator
+- Run as subprocess from Prismatic agent flow or orchestrator
 - Stdio transport (JSON-RPC 2.0)
 - Environment variables for configuration
+- Prismatic environment variables available via Prismatic's configuration system
 
 ## Future Enhancements
 
@@ -200,7 +246,7 @@ python -m integration_mcp.server
    - Performance dashboards
 
 4. **External Integrations**
-   - Salesforce adapter
+   - ✅ Salesforce MCP server integration (in progress)
    - HubSpot adapter
    - HR systems
 

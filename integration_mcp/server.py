@@ -16,6 +16,12 @@ from integration_mcp.tools.similar_msas import get_similar_msas_tool
 from integration_mcp.tools.clause_fallbacks import get_clause_fallbacks_tool
 from integration_mcp.tools.signing_likelihood import estimate_signing_likelihood_tool
 
+# Optional Salesforce MCP client
+try:
+    from integration_mcp.salesforce_mcp_client import SalesforceMcpClient
+except ImportError:
+    SalesforceMcpClient = None
+
 # Setup logging
 setup_logging()
 logger = get_logger(__name__)
@@ -23,8 +29,9 @@ logger = get_logger(__name__)
 # Initialize MCP server
 server = Server("integration-mcp")
 
-# Global client instance (initialized in main)
+# Global client instances (initialized in main)
 luminance_client: LuminanceClient | None = None
+salesforce_mcp_client: Any | None = None
 
 
 @server.list_tools()
@@ -38,7 +45,7 @@ async def list_tools() -> list[Tool]:
         raise RuntimeError("Luminance client not initialized")
 
     tools = [
-        get_company_context_tool(luminance_client).get_tool_definition(),
+        get_company_context_tool(luminance_client, salesforce_mcp_client).get_tool_definition(),
         get_similar_msas_tool(luminance_client).get_tool_definition(),
         get_clause_fallbacks_tool(luminance_client).get_tool_definition(),
     ]
@@ -75,7 +82,7 @@ async def call_tool(name: str, arguments: dict[str, Any] | None) -> list[TextCon
 
     # Route to appropriate tool handler
     tool_handlers = {
-        "get_company_context": get_company_context_tool(luminance_client),
+        "get_company_context": get_company_context_tool(luminance_client, salesforce_mcp_client),
         "get_similar_msas": get_similar_msas_tool(luminance_client),
         "get_clause_fallbacks": get_clause_fallbacks_tool(luminance_client),
         "estimate_signing_likelihood": estimate_signing_likelihood_tool(luminance_client),
@@ -99,7 +106,7 @@ async def call_tool(name: str, arguments: dict[str, Any] | None) -> list[TextCon
 
 async def main() -> None:
     """Main entry point for the MCP server."""
-    global luminance_client
+    global luminance_client, salesforce_mcp_client
 
     logger.info("Starting MCP server", version="0.1.0")
 
@@ -111,6 +118,22 @@ async def main() -> None:
         logger.error("Failed to initialize Luminance client", error=str(e))
         sys.exit(1)
 
+    # Initialize Salesforce MCP client (optional)
+    if config.salesforce_mcp_enabled and SalesforceMcpClient:
+        try:
+            salesforce_mcp_client = SalesforceMcpClient()
+            await salesforce_mcp_client.connect()
+            logger.info("Salesforce MCP client initialized")
+        except Exception as e:
+            logger.warning(
+                "Failed to initialize Salesforce MCP client",
+                error=str(e),
+                note="Continuing without Salesforce integration",
+            )
+            salesforce_mcp_client = None
+    else:
+        logger.info("Salesforce MCP client disabled or not available")
+
     # Run server with stdio transport
     async with stdio_server() as (read_stream, write_stream):
         await server.run(
@@ -120,9 +143,11 @@ async def main() -> None:
         )
 
     # Cleanup
+    if salesforce_mcp_client:
+        await salesforce_mcp_client.disconnect()
     if luminance_client:
         await luminance_client.close()
-        logger.info("MCP server shutdown complete")
+    logger.info("MCP server shutdown complete")
 
 
 if __name__ == "__main__":

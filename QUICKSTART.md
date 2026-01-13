@@ -4,6 +4,8 @@
 
 - Python 3.10+
 - Access to Luminance API (base URL and bearer token)
+- (Optional) Prismatic account and API key for Prismatic deployment
+- (Optional) Salesforce MCP server for company context enrichment
 
 ## Installation
 
@@ -36,6 +38,15 @@
    RATE_LIMIT_PER_MINUTE=60
    TOOL_TIMEOUT_SECONDS=30
    ENABLE_SIGNING_LIKELIHOOD=true
+
+   # Optional: Prismatic configuration
+   # PRISMATIC_API_KEY=your-prismatic-api-key
+   # PRISMATIC_BASE_URL=https://app.prismatic.io
+   # PRISMATIC_REGION=us
+
+   # Optional: Salesforce MCP configuration
+   # SALESFORCE_MCP_ENABLED=false
+   # SALESFORCE_MCP_ENDPOINT=http://localhost:3000
    ```
 
 ## Running the Server
@@ -222,10 +233,35 @@ result = await session.call_tool(
 - Adjust `RATE_LIMIT_PER_MINUTE` in `.env` if hitting limits
 - Check logs for rate limit warnings
 
+## Prismatic Deployment
+
+This MCP server is designed to run within **Prismatic**. For Prismatic deployment:
+
+1. **Create Agent Flows in Prismatic:**
+   - Create agent flows with invocation schemas matching your tool definitions
+   - Each tool should have a corresponding agent flow with proper input/output schemas
+   - See [Prismatic MCP Documentation](https://prismatic.io/docs/ai/model-context-protocol/) for details
+
+2. **Configure Prismatic Connection:**
+   - Set `PRISMATIC_API_KEY` in your `.env` file
+   - Configure `PRISMATIC_BASE_URL` and `PRISMATIC_REGION` if needed
+   - Deploy the MCP server as a Prismatic integration component
+
+3. **Connect AI Agents:**
+   - Use Prismatic's MCP endpoint: `mcp.prismatic.io/mcp` (or region-specific)
+   - Or use integration-specific endpoint from Prismatic UI
+
+4. **Salesforce MCP Integration (Optional):**
+   - Set up Salesforce MCP server separately (see [Salesforce MCP Repository](https://github.com/salesforcecli/mcp))
+   - Enable `SALESFORCE_MCP_ENABLED=true` in `.env`
+   - Configure Salesforce MCP endpoint if not using default
+
 ## Next Steps
 
 - Review [ARCHITECTURE.md](ARCHITECTURE.md) for design details
 - See [README.md](README.md) for full documentation
+- Review [Prismatic MCP Documentation](https://prismatic.io/docs/ai/model-context-protocol/)
+- Review [Salesforce MCP Repository](https://github.com/salesforcecli/mcp) for Salesforce integration
 - Customize tools for your specific use case
 - Integrate with your agent/orchestrator
 

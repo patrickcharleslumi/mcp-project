@@ -31,6 +31,19 @@ class Config(BaseSettings):
     # Feature flags
     enable_signing_likelihood: bool = Field(default=True, alias="ENABLE_SIGNING_LIKELIHOOD")
 
+    # Prismatic Configuration (optional, for Prismatic-hosted deployment)
+    prismatic_api_key: Optional[str] = Field(default=None, alias="PRISMATIC_API_KEY")
+    prismatic_base_url: str = Field(
+        default="https://app.prismatic.io", alias="PRISMATIC_BASE_URL"
+    )
+    prismatic_region: Optional[str] = Field(default=None, alias="PRISMATIC_REGION")
+
+    # Salesforce MCP Configuration (optional, for company context enrichment)
+    salesforce_mcp_enabled: bool = Field(default=False, alias="SALESFORCE_MCP_ENABLED")
+    salesforce_mcp_endpoint: Optional[str] = Field(
+        default=None, alias="SALESFORCE_MCP_ENDPOINT"
+    )
+
 
 # Global config instance
 config = Config()
