@@ -1,0 +1,51 @@
+.tabs-view {
+    display: flex;
+    column-gap: 10px;
+    button.tab {
+        font-size: @primary-text-size;
+        column-gap: 5px;
+        padding: 0 10px;
+        border-radius: @button-border-radius;
+        position: relative;
+        span {
+            padding-left: 0; // overriding button styling as the majority case for tabs is no icon
+            text-transform: uppercase;
+        }
+
+        &.selected {
+            background-color: @selected-list-item-background-colour;
+        }
+    }
+
+    button.tab.ai-insights-tab {
+        border: 1px solid fade(@primary-colour, 55%);
+        background-color: fade(@primary-background-colour, 45%);
+        font-weight: @heading-text-weight;
+    }
+
+    .tab-badge {
+        display: grid;
+        place-items: center;
+        width: 18px;
+        height: 18px;
+        padding: 0;
+        margin-left: 6px;
+        border-radius: 10px;
+        background: @negative-red-colour;
+        color: @white-colour;
+        font-size: 11px;
+        font-weight: @label-text-weight;
+        line-height: 1;
+        text-align: center;
+        align-self: center;
+        box-sizing: border-box;
+    }
+
+    .tab-badge.dot {
+        min-width: 6px;
+        width: 6px;
+        height: 6px;
+        padding: 0;
+        border-radius: 50%;
+    }
+}

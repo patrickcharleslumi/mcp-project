@@ -1,0 +1,402 @@
+@import './group-overview/group-events-view.less';
+@import './group-overview/group-version-tube-map.less';
+@import './group-overview/group-overview-actions-view.less';
+@import './group-overview/group-overview-tools-view.less';
+@import './group-overview/group-overview-related-view.less';
+@import './group-overview/group-annotation-fields-view.less';
+@import './group-overview/group-ai-insights-view.less';
+@import './group-overview/group-identifiers-view.less';
+@import './group-overview/group-overview-move-stage-view.less';
+@import './group-overview/group-roles-view.less';
+@import './group-overview/group-roles-dropdown.less';
+@import './group-overview/edit-group-roles-view.less';
+
+@group-annotation-input-label-width: 150px;
+
+.group-overview-view {
+    height: 100%;
+    width: 100%;
+    display: grid;
+    grid-template-columns: 100%;
+    grid-template-rows: auto minmax(0, 1fr);
+    row-gap: 20px;
+    background-color: @page-background-colour;
+
+    padding: 40px;
+
+    .container-style {
+        background-color: @view-background-colour;
+        border: 1px solid @border-colour;
+        border-radius: @view-container-border-radius;
+        padding: 20px;
+    }
+
+    >.header {
+        display: flex;
+        flex-direction: column;
+        row-gap: 20px;
+
+        >.topbar {
+            display: grid;
+            grid-template-columns: auto auto minmax(200px, 5fr) repeat(4, auto);
+            grid-template-rows: auto;
+            justify-content: space-between;
+            align-items: center;
+            column-gap: 20px;
+
+            &.container-style {
+                padding: 10px 20px;
+            }
+
+            >.group-roles-container {
+                display: flex;
+            }
+
+            >.collaborators-container {
+                display: flex;
+                flex-direction: column;
+                row-gap: 20px;
+            }
+
+            >.watchers-container {
+                display: flex;
+                flex-direction: column;
+                row-gap: 20px;
+            }
+
+            >*:not(button) {
+                display: grid;
+                grid-template-columns: 15px minmax(0, max-content) minmax(0, max-content) 30px;
+                column-gap: 5px;
+                align-items: center;
+
+                >.title {
+                    font-weight: @subheading-text-weight;
+                    .truncate-text();
+                }
+
+                >.value {
+                    position: relative;
+                    color: @primary-text-colour;
+                    min-height: 20px;
+                    min-width: 20px;
+                    .truncate-text();
+                }
+
+                &.group-pretty-id-container, &.group-name-container {
+                    display: flex;
+                    font-size: @primary-text-size;
+                    font-weight: @heading-text-weight;
+                }
+
+                &.group-pretty-id-container {
+                    border-right: 1px solid @border-colour;
+                    padding-right: 20px;
+                    text-align: center;
+                }
+
+                &.group-name-container {
+                    margin-left: -5px; // This visually counters the internal padding on the input field text which is shifted 5px right away from the border
+                    .value {
+                        width: calc(100% - 30px - 5px); // -30px for edit icon appearing - 5px for column gap
+                        padding-top: 2px; // 2px to visually align the text within the input
+                    }
+                }
+            }
+
+            >*:not(button).editable {
+                >input {
+                    &:not(.loading) {
+                        cursor: pointer;
+                    }
+                }
+
+                &:hover {
+                    input {
+                        &:hover {
+                            &:not(:focus):not(.loading) + .edit-icon {
+                                opacity: 1;
+                                width: @icon-container-width;
+                                cursor: pointer;
+                            }
+                        }
+                    }
+                }
+
+                &.group-name-container {
+                    >input {
+                        border: 1px solid transparent;
+                    }
+                    &:hover {
+                        >input {
+                            border: 1px solid @border-colour;
+                        }
+                    }
+                }
+
+                >.edit-icon {
+                    transition: width 0.3s ease, opacity 0.3s ease;
+                    opacity: 0;
+                    width: 0;
+                }
+            }
+        }
+
+        >.timeline-container {
+            position: relative;
+            min-height: 70px;
+            display: grid;
+            grid-template-columns: auto auto minmax(0, 1fr);
+            align-items: center;
+            column-gap: @icon-container-width;
+
+            text-align: center;
+
+            &.container-style {
+                padding: 15px 20px; // overwriting .container-style padding to make visually consistent (due to height of child element)
+            }
+
+            >.status-container {
+                display: flex;
+                align-items: center;
+                column-gap: calc(@icon-container-width / 2);
+
+                font-size: @primary-text-size;
+                border-right: 1px solid @border-colour;
+                padding-right: @icon-container-width;
+
+                > * {
+                    font-weight: @heading-text-weight;
+                    text-transform: uppercase;
+                    .truncate-text();
+                }
+
+                >.status-name {
+                    text-wrap: wrap;
+                    max-width: 150px; // arbitrary
+                    color: @primary-colour;
+                }
+            }
+
+            >.reviewer-container {
+                position: relative;
+                display: grid;
+                grid-template-columns:  minmax(0, max-content) minmax(0, max-content) 30px;
+                column-gap: 10px;
+                align-items: center;
+                justify-content: center;
+
+                font-weight: @label-text-weight;
+                font-size: @secondary-text-size;
+
+                border-right: 1px solid @border-colour; // no padding right due to edit icon
+                cursor: no-drop;
+                >.title {
+                    text-wrap: nowrap;
+                }
+
+                >.value {
+                    position: relative;
+
+                    color: @primary-text-colour;
+                    .truncate-text();
+
+                    &.loading { // For spinner
+                        min-height: 20px;
+                        min-width: 20px;
+                    }
+                }
+
+                >.edit-icon {
+                    transition: width 0.3s ease, opacity 0.3s ease;
+                    opacity: 0;
+                    width: 0;
+                    margin-left: -10px; // brings the icon closer to the text
+                }
+                &.editable {
+                    cursor: pointer;
+                    &:hover {
+                        .value {
+                            &:not(:focus):not(.loading) + .edit-icon {
+                                opacity: 1;
+                                width: @icon-container-width;
+                                cursor: pointer;
+                            }
+                        }
+                    }
+                    >.value:not(.loading) {
+                        cursor: pointer;
+                    }
+                }
+            }
+
+            .tube-map-container {
+                position: relative;
+                width: 100%;
+                overflow: auto;
+
+                &.loading { // For spinner
+                    min-height: 20px;
+                }
+            }
+        }
+    }
+
+    >.body {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr);
+        column-gap: 20px;
+
+        /**
+        * The structure of the content and actions container should be as follows (as a column)
+        * - INFO & WIDGETS
+        *       When all collapsed, should take up the minimum amount of space
+        *       When all expanded, should overflow and scroll
+        * - ACTIONS
+        *       When the info and widgets container is not overflowing, the actions should be pressed up against the top row, with a dynamic gap between itself and the bottom row
+        * - PROGRESS WORKFLOW
+        *       Should always be anchored to the bottom
+        */
+        >.content-and-actions-container {
+            display: flex;
+            flex-direction: column;
+            row-gap: 20px;
+
+            >.content-container {
+                display: flex;
+                flex-direction: column;
+                row-gap: 20px;
+                overflow-y: auto;
+
+                > * {
+                    position: relative;
+                    flex-direction: column;
+                    row-gap: 20px;
+
+                    >.header {
+                        display: grid;
+                        grid-template-columns: minmax(0, 1fr) auto;
+                        align-items: center;
+
+                        .title {
+                            text-transform: uppercase;
+                            font-size: @primary-text-size;
+                            font-weight: @heading-text-weight;
+                            flex-shrink: 0;
+                            white-space: nowrap;
+                        }
+                    }
+
+                    >.body {
+                        display: none;
+                        overflow-y: auto;
+                        height: 100%;
+                    }
+
+                    &.expanded {
+                        >.header {
+                            button.expand {
+                                i {
+                                    transform: rotate(180deg);
+                                }
+                            }
+                        }
+                        &.expanded {
+                            >.body {
+                                display: flex;
+                            }
+                        }
+                    }
+                }
+
+                >.group-overview-tool-view {
+                    display: none;
+                }
+
+                >.context-container {
+                    display: flex;
+
+                    .header {
+                        width: 100%;
+                        
+                        .actions {
+                            display: grid;
+                            grid-template-columns: @group-annotation-input-label-width 20px minmax(0, 1fr);
+                            align-items: center;
+                            width: 100%;
+
+                            button:not(.preview) {
+                                grid-column: 4;
+                                margin-left: 10px;
+
+                                .label {
+                                    padding-left: 0;
+                                }
+                            }
+
+                            button.preview {
+                                grid-column: 3;
+                                min-width: 0;   
+                                overflow: hidden;
+                                
+                                span.label {
+                                    .truncate-text();
+                                    width: 100%;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            >.actions-container {
+                display: flex;
+                flex-direction: column;
+                row-gap: 20px;
+                flex-grow: 1;
+
+                >.workflow-actions-container {
+                    display: flex;
+                    flex-direction: row;
+                    justify-content: flex-end;
+                }
+
+                >.progress-workflow-container {
+                    display: flex;
+                    justify-content: flex-end;
+                    margin-top: auto; // this is to keep a dynamic gap between this button and the workflow actions
+
+                    > .action > *:not(button) {
+                        padding: 0;
+                    }
+                }
+            }
+        }
+
+
+        >.activity-and-related-container {
+            display: grid;
+            grid-template-rows: auto minmax(0, 1fr);
+            gap: 20px;
+
+            >.body {
+                > * {
+                    height: 100%;
+                }
+            }
+        }
+    }
+
+    &.show-tools {
+        >.body {
+            >.content-and-actions-container {
+                >.content-container {
+                    .group-overview-tool-view {
+                        display: flex;
+                    }
+                }
+            }
+        }
+    }
+}

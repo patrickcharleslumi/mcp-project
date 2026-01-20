@@ -1,0 +1,82 @@
+<script id="tpl-group-overview-view" type="text/html">
+    <div class="header">
+        <div class="topbar container-style">
+            <button class="secondary back">
+                <i class="icon fa fa-fw fa-arrow-left" aria-hidden="true"></i>
+                <span class="message">{{ dictionary.group-overview-view.topbar.back }}</span>
+            </button>
+            <div class="group-pretty-id-container">
+                <span class="group-pretty-id-title title">#</span>
+                <span class="group-pretty-id value"></span>
+            </div>
+            <div class="group-name-container editable">
+                <span class="group-name-span value hidden"></span>
+                <input class="group-name value input-style hidden" />
+                <i class="fa fa-fw fa-pencil edit-icon" aria-hidden="true"></i>
+            </div>
+            <div class="submitted-container">
+                <i class="fa fa-fw fa-paper-plane" aria-hidden="true"></i>
+                <span class="submitted-title title">{{ dictionary.group-overview-view.topbar.submitted_by }}:</span>
+                <span class="submitted-name value"></span>
+            </div>
+            <div class="group-roles-container">
+                <div class="collaborators-container"></div>
+                <div class="watchers-container"></div>
+            </div>
+            <button class="secondary round-icon-style group-menu-button">
+                <i class="icon fa fa-fw fa-bars" aria-hidden="true"></i>
+            </button>
+        </div>
+        <div class="timeline-container container-style">
+            <div class="status-container">
+                <span class="title">{{ dictionary.group-overview-view.timeline.title }}</span>
+                <span class="status-name"></span>
+            </div>
+            <div class="reviewer-container">
+                <span class="reviewer-title title">{{ dictionary.group-overview-view.topbar.reviewer }}:</span>
+                <span class="reviewer-name value"></span>
+                <i class="fa fa-fw fa-pencil edit-icon" aria-hidden="true"></i>
+            </div>
+            <div class="tube-map-container"></div>
+        </div>
+    </div>
+    <div class="body">
+        <div class="content-and-actions-container">
+            <div class="content-container">
+                <div class="context-container container-style">
+                    <div class="header">
+                        <div class="title-container">
+                            <span class="title">{{ dictionary.group-overview-view.context.title }}</span>
+                        </div>
+                        <div class="actions">
+                            <button class="secondary large-style group-annotations-extract-button hidden">
+                                <span class="label">{{ dictionary.group-overview-view.context.extract_matter_tags }}</span>
+                            </button>
+                            <button class="secondary large-style preview hidden">
+                                <span class="label">{{ dictionary.group-overview-view.context.preview }}</span>
+                            </button>
+                            <button class="tertiary expand">
+                                <i class="icon fa fa-fw fa-chevron-down" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="body"></div>
+                </div>
+            </div>
+            <div class="actions-container">
+                <div class="workflow-actions-container"></div>
+                <div class="progress-workflow-container"></div>
+            </div>
+        </div>
+        <div class="activity-and-related-container container-style">
+            <div class="tabs-container"></div>
+            <div class="body">
+                <div class="tab activity-container"></div>
+                <div class="tab related-container hidden"></div>
+                <div class="tab ai-insights-container hidden"></div>
+            </div>
+        </div>
+    </div>
+    <input class="file-upload hidden" type="file" name="file"/>
+    <input class="file-upload-attachment hidden" type="file" name="file"/>
+</script>

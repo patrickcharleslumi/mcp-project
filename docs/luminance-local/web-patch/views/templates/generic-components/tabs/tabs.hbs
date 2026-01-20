@@ -1,0 +1,13 @@
+<script id="tpl-tabs-view" type="text/html">
+    <% tabs.forEach(({ key, title, iconClass, className, badge_count, badge_dot }) => { %>
+        <button class="tab tertiary <%- className || '' %>" data-tab="<%- key %>">
+            <% if (iconClass) { %>
+                <i class="fa fa-<%- iconClass %>"></i>
+            <% } %>
+            <span class="label"><%- title %></span>
+            <% if ((typeof badge_count === 'number' && badge_count > 0) || badge_dot) { %>
+                <span class="tab-badge <%- badge_dot ? 'dot' : '' %>"><%- badge_count || '' %></span>
+            <% } %>
+        </button>
+    <% }) %>
+</script>

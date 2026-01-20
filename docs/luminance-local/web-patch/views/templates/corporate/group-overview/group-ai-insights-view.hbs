@@ -1,0 +1,77 @@
+<script id="tpl-group-ai-insights-view" type="text/html">
+    <div class="group-ai-insights-view">
+        <section class="ai-integrations-panel">
+            <div class="label">
+                <i class="fa fa-fw fa-plug"></i>
+                Connected integrations
+            </div>
+            <div class="integration-list">
+                <div class="integration-pill connected">
+                    <div class="integration-logo salesforce">
+                        <img src="{{asset '/icons/salesforce-logo.png'}}" alt="Salesforce"/>
+                        <span class="fallback">SF</span>
+                    </div>
+                    <span class="name">Salesforce</span>
+                    <i class="fa fa-fw fa-check-circle status-icon"></i>
+                </div>
+            </div>
+        </section>
+
+        <section class="ai-panel ai-summary-panel">
+            <div class="header">
+                <div class="title">
+                    <i class="fa fa-fw fa-shield"></i>
+                    AI matter summary
+                </div>
+                <div class="header-actions">
+                    <span class="confidence-badge hidden">AI confidence</span>
+                    <button class="tertiary toggle-reasoning">View reasoning</button>
+                </div>
+            </div>
+            <div class="summary-grid">
+                <div class="empty-state hidden">Summary will appear once analysis completes.</div>
+            </div>
+            <div class="summary-reasoning hidden"></div>
+        </section>
+
+        <section class="ai-panel ai-recommendations-panel">
+            <div class="header">
+                <div class="title">
+                    <i class="fa fa-fw fa-bolt"></i>
+                    Recommended actions
+                </div>
+                <button class="secondary approve-all hidden">Review & approve all</button>
+            </div>
+            <div class="recommendations-list">
+                <div class="empty-state hidden">No recommendations at this time.</div>
+            </div>
+        </section>
+
+        <section class="ai-panel ai-agent-panel">
+            <div class="header">
+                <div class="title">
+                    <i class="fa fa-fw fa-comments"></i>
+                    Agent requests
+                </div>
+                <div class="subtitle">Ask Lumi for more context</div>
+            </div>
+            <div class="agent-chat">
+                <div class="agent-chat-log"></div>
+                <div class="agent-thinking hidden">
+                    <div class="thinking-widget pulse">
+                        <div class="icons-container">
+                            <img class="dynamic" src="{{asset '/icons/lumi-logo-dynamic.gif'}}" alt="Lumi"/>
+                            <img class="static hidden" src="{{asset '/icons/lumi-logo-v3.png'}}" alt="Lumi"/>
+                        </div>
+                        <span class="thinking-label">Lumi is thinking</span>
+                    </div>
+                </div>
+                <form class="agent-chat-input">
+                    <input class="input-style agent-input" type="text" placeholder="Ask for Salesforce context (e.g., renewal risk, account history)"/>
+                    <button class="primary send-agent-message" type="submit">Ask agent</button>
+                </form>
+            </div>
+        </section>
+
+    </div>
+</script>
