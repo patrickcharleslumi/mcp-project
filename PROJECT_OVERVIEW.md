@@ -94,20 +94,20 @@ Key principles:
 
 ```mermaid
 flowchart LR
-  subgraph Agentic Layer
-    User[Legal User<br/>Matter Insights UI]
-    Agent[AI Agent / Orchestrator]
-    Prismatic[Prismatic MCP Flow Server<br/>(optional)]
+  subgraph "Agentic Layer"
+    User["Legal User\nMatter Insights UI"]
+    Agent["AI Agent / Orchestrator"]
+    Prismatic["Prismatic MCP Flow Server\n(optional)"]
     User --> Agent
     Agent --> Prismatic
   end
 
-  subgraph MCP Server Layer
-    MCP[Integration MCP Server<br/>(HTTP wrapper)]
-    StdioMCP[Stdio MCP Server<br/>(Prismatic/CLI)]
+  subgraph "MCP Server Layer"
+    MCP["Integration MCP Server\n(HTTP wrapper)"]
+    StdioMCP["Stdio MCP Server\n(Prismatic/CLI)"]
   end
 
-  subgraph Sources
+  subgraph "Sources"
     Lum[Luminance API]
     SF[Salesforce MCP]
     ERP[ERP / Sage MCP]
