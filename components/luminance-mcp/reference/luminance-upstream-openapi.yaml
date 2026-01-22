@@ -1,0 +1,140 @@
+openapi: 3.0.3
+info:
+  title: Luminance API (Upstream Calls Used by MCP Wrapper)
+  version: 1.0.0
+  description: |
+    Subset of Luminance API endpoints called by the MCP wrapper.
+    Base URL is your Luminance instance (e.g. https://localhost:4000).
+servers:
+  - url: https://localhost:4000
+security:
+  - bearerAuth: []
+paths:
+  /api2/projects/{project_id}:
+    get:
+      summary: Get project
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      responses:
+        "200":
+          description: OK
+  /api2/projects/{project_id}/documents:
+    get:
+      summary: List documents
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+  /api2/projects/{project_id}/documents/{document_id}:
+    get:
+      summary: Get document
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - $ref: "#/components/parameters/documentId"
+      responses:
+        "200":
+          description: OK
+  /api2/projects/{project_id}/documents/{document_id}/annotations:
+    get:
+      summary: List document annotations
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - $ref: "#/components/parameters/documentId"
+        - in: query
+          name: type
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+  /api2/projects/{project_id}/documents/{document_id}/annotations/annotationText:
+    get:
+      summary: Retrieve annotation text
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - $ref: "#/components/parameters/documentId"
+        - in: query
+          name: id
+          required: true
+          schema:
+            oneOf:
+              - type: integer
+              - type: array
+                items:
+                  type: integer
+        - in: query
+          name: fullParagraph
+          schema:
+            type: string
+            enum: ["true", "false"]
+      responses:
+        "200":
+          description: OK
+  /api2/projects/{project_id}/matters/{matter_id}:
+    get:
+      summary: Get matter
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - $ref: "#/components/parameters/matterId"
+      responses:
+        "200":
+          description: OK
+  /api2/projects/{project_id}/matters/{matter_id}/annotations:
+    get:
+      summary: List matter annotations
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - $ref: "#/components/parameters/matterId"
+      responses:
+        "200":
+          description: OK
+  /api2/projects/{project_id}/matters/{matter_id}/versions:
+    get:
+      summary: List matter versions
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+        - $ref: "#/components/parameters/matterId"
+      responses:
+        "200":
+          description: OK
+  /api2/projects/{project_id}/tasks:
+    get:
+      summary: List tasks
+      parameters:
+        - $ref: "#/components/parameters/projectId"
+      responses:
+        "200":
+          description: OK
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  parameters:
+    projectId:
+      in: path
+      name: project_id
+      required: true
+      schema:
+        type: integer
+    documentId:
+      in: path
+      name: document_id
+      required: true
+      schema:
+        type: integer
+    matterId:
+      in: path
+      name: matter_id
+      required: true
+      schema:
+        type: integer

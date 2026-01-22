@@ -86,7 +86,7 @@ ENABLE_SIGNING_LIKELIHOOD=true
 Test that your configuration works:
 
 ```bash
-python -m integration_mcp.test_client
+PYTHONPATH=components/luminance-mcp python -m integration_mcp.test_client
 ```
 
 If you see errors about authentication, double-check:

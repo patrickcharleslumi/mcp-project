@@ -56,7 +56,7 @@
 The server communicates via stdio using JSON-RPC 2.0:
 
 ```bash
-python -m integration_mcp.server
+PYTHONPATH=components/luminance-mcp python -m integration_mcp.server
 ```
 
 This will read from stdin and write to stdout. MCP clients should launch this as a subprocess.
@@ -66,7 +66,7 @@ This will read from stdin and write to stdout. MCP clients should launch this as
 Run the test client to verify tools work:
 
 ```bash
-python -m integration_mcp.test_client
+PYTHONPATH=components/luminance-mcp python -m integration_mcp.test_client
 ```
 
 **Note:** Update the test data in `test_client.py` with real `project_id` and `msa_id` values from your Luminance instance.
@@ -84,6 +84,7 @@ Add to your Claude Desktop MCP configuration (`~/Library/Application Support/Cla
       "command": "python",
       "args": ["-m", "integration_mcp.server"],
       "env": {
+        "PYTHONPATH": "components/luminance-mcp",
         "LUMINANCE_BASE_URL": "https://your-domain.example",
         "LUMINANCE_API_TOKEN": "your-token"
       }
@@ -105,6 +106,7 @@ async def main():
         command="python",
         args=["-m", "integration_mcp.server"],
         env={
+            "PYTHONPATH": "components/luminance-mcp",
             "LUMINANCE_BASE_URL": "https://your-domain.example",
             "LUMINANCE_API_TOKEN": "your-token"
         }
@@ -258,7 +260,7 @@ This MCP server is designed to run within **Prismatic**. For Prismatic deploymen
 
 ## Next Steps
 
-- Review [ARCHITECTURE.md](ARCHITECTURE.md) for design details
+- Review [ARCHITECTURE.md](../architecture/ARCHITECTURE.md) for design details
 - See [README.md](README.md) for full documentation
 - Review [Prismatic MCP Documentation](https://prismatic.io/docs/ai/model-context-protocol/)
 - Review [Salesforce MCP Repository](https://github.com/salesforcecli/mcp) for Salesforce integration

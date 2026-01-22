@@ -1,20 +1,22 @@
 # Luminance Integration MCP Server
 **Build Something Brilliant - Competition Entry**
 
-## Quick links
-- Project overview (canonical): `PROJECT_OVERVIEW.md`
-- Docs index: `docs/README.md`
-- Components map: `components/README.md`
-- HTTP MCP wrapper runbook: `components/luminance-mcp/docs/MCP_WRAPPER.md`
-- MCP OpenAPI spec: `components/luminance-mcp/reference/mcp-openapi.yaml`
-- Upstream Luminance spec: `components/luminance-mcp/reference/luminance-upstream-openapi.yaml`
-- Luminance UI demo: `components/ai-insights-ui/docs/luminance-local/RUN_LOCAL_LUMINANCE.md`
+---
 
-## Components
-- **Luminance MCP**: `mcp/` (FastAPI HTTP MCP wrapper for Luminance endpoints)
-- **Salesforce MCP**: `components/salesforce-mcp/salesforce_mcp_client.py` (client integration stub)
-- **Luminance AI Insights Screen**: `components/ai-insights-ui/docs/luminance-local/` + `components/ai-insights-ui/docs/luminance-local/web-patch/`
-- **Agentic Layer**: `components/agentic-layer/` (agent docs + orchestration)
+## Table of Contents
+1. Competition Overview
+2. Updated Problem Statement
+3. Why This Problem Matters
+4. Our Solution
+5. High-Level Architecture
+6. Agentic Layer
+7. MCP Server Layer
+8. How Context Is Unlocked (Sequence Diagram)
+9. MCP Server Responsibilities
+10. Agent & UI Integration
+11. Repository Structure
+12. Running Locally
+13. Security, Governance & Auditability
 
 ---
 
@@ -54,7 +56,7 @@ As a result:
 - Critical commercial nuance never reaches the contract review surface
 - AI systems operating on contracts alone lack decision-critical inputs
 
-> The contract is only one part of the decision.
+> The contract is only one part of the decision.  
 > The *context* determines how that contract should be handled.
 
 ---
@@ -217,7 +219,6 @@ Every response includes:
 
 ```
 mcp-project/
-|-- PROJECT_OVERVIEW.md       # Canonical project overview
 |-- mcp/                      # HTTP MCP wrapper (FastAPI)
 |-- components/luminance-mcp/integration_mcp/  # Stdio MCP server (Prismatic/CLI)
 |-- components/               # Component-level docs and links
@@ -225,7 +226,8 @@ mcp-project/
 |   |-- salesforce-mcp/
 |   |-- ai-insights-ui/
 |   `-- agentic-layer/
-|-- docs/                     # Doc index
+|-- docs/                     # Overview + doc index
+|   |-- overview/
 |   `-- README.md
 |-- tests/
 `-- deploy/

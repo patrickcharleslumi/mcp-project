@@ -191,7 +191,7 @@ Four semantic tools:
 
 ### Local Development
 ```bash
-python -m integration_mcp.server
+PYTHONPATH=components/luminance-mcp python -m integration_mcp.server
 ```
 
 ### Prismatic Deployment

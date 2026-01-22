@@ -70,7 +70,7 @@ The demo uses **local-only changes** in the `web` repo. You do not need to copy 
 
 We have captured the exact modified files in:
 ```
-mcp-project/docs/luminance-local/web-patch/
+mcp-project/components/ai-insights-ui/docs/luminance-local/web-patch/
 ```
 
 You can copy these over the top of a clean `web` checkout (paths are preserved).
@@ -79,7 +79,7 @@ You can copy these over the top of a clean `web` checkout (paths are preserved).
 1. Open a terminal in the `mcp-project` repo.
 2. Run the following commands (adjust paths if you used different locations):
 ```bash
-cd /Users/<you>/code/mcp-project/docs/luminance-local/web-patch
+cd /Users/<you>/code/mcp-project/components/ai-insights-ui/docs/luminance-local/web-patch
 cp -R . /Users/<you>/code/web/
 ```
 3. Confirm the files landed in the correct locations (paths are preserved).

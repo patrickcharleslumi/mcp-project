@@ -223,7 +223,7 @@ To enable Salesforce MCP integration for company context enrichment:
 Before deploying to Prismatic, test locally:
 
 ```bash
-python -m integration_mcp.server
+PYTHONPATH=components/luminance-mcp python -m integration_mcp.server
 ```
 
 ### Test in Prismatic

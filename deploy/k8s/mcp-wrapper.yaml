@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: luminance-mcp-wrapper
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: luminance-mcp-wrapper
+  template:
+    metadata:
+      labels:
+        app: luminance-mcp-wrapper
+    spec:
+      containers:
+        - name: mcp-wrapper
+          image: luminance/mcp-wrapper:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: MCP_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mcp-wrapper-secrets
+                  key: mcp_api_key
+            - name: LUMINANCE_BASE_URL
+              value: https://your-domain.example
+            - name: LUMINANCE_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: mcp-wrapper-secrets
+                  key: luminance_api_token
+            - name: LUMINANCE_PROJECT_ID
+              value: "1"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: luminance-mcp-wrapper
+spec:
+  selector:
+    app: luminance-mcp-wrapper
+  ports:
+    - port: 80
+      targetPort: 8080

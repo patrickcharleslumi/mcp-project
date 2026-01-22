@@ -1,0 +1,201 @@
+openapi: 3.0.3
+info:
+  title: Luminance MCP Wrapper API
+  version: 1.0.0
+  description: MCP HTTP wrapper exposing curated Luminance API capabilities.
+servers:
+  - url: https://mcp.local
+security:
+  - bearerAuth: []
+paths:
+  /mcp/groups/{groupId}/version-comparison:
+    post:
+      summary: Compare document versions for a group
+      parameters:
+        - in: path
+          name: groupId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VersionCompareRequest"
+            examples:
+              sample:
+                value:
+                  baseDocumentId: "doc:v1:987"
+                  compareDocumentId: "doc:v2:988"
+                  options:
+                    clauseGranularity: true
+                    sensitivity: medium
+      responses:
+        "200":
+          description: Comparison results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpResponse"
+  /mcp/groups/{groupId}/clauses/search:
+    post:
+      summary: Search similar clauses
+      parameters:
+        - in: path
+          name: groupId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClauseSearchRequest"
+      responses:
+        "200":
+          description: Similar clauses
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpResponse"
+  /mcp/groups/{groupId}/info:
+    get:
+      summary: Retrieve group metadata and tags
+      parameters:
+        - in: path
+          name: groupId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Group info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpResponse"
+  /mcp/templates:
+    get:
+      summary: List available templates
+      responses:
+        "200":
+          description: Templates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpResponse"
+  /mcp/templates/{templateId}:
+    get:
+      summary: Retrieve a template by ID
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpResponse"
+  /mcp/groups/bulk-enrich:
+    post:
+      summary: Bulk enrichment for group info
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkEnrichRequest"
+      responses:
+        "200":
+          description: Bulk results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/McpResponse"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    VersionCompareRequest:
+      type: object
+      properties:
+        taskId:
+          type: string
+        inputs:
+          type: object
+        baseDocumentId:
+          type: string
+        compareDocumentId:
+          type: string
+        options:
+          type: object
+          properties:
+            clauseGranularity:
+              type: boolean
+            sensitivity:
+              type: string
+    ClauseSearchRequest:
+      type: object
+      properties:
+        taskId:
+          type: string
+        inputs:
+          type: object
+        clauseId:
+          type: string
+        clauseText:
+          type: string
+        filters:
+          type: object
+          properties:
+            governingLaw:
+              type: string
+            tcvRange:
+              type: object
+              properties:
+                min:
+                  type: number
+                max:
+                  type: number
+        limit:
+          type: integer
+        sort:
+          type: string
+    BulkEnrichRequest:
+      type: object
+      properties:
+        taskId:
+          type: string
+        inputs:
+          type: object
+        groupIds:
+          type: array
+          items:
+            type: integer
+    McpResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        summary:
+          type: string
+        payload:
+          type: object
+        provenance:
+          type: array
+          items:
+            type: object
+        humanReviewRequired:
+          type: boolean
+        requestId:
+          type: string
+        taskId:
+          type: string

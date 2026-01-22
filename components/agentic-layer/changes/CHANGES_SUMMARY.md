@@ -10,7 +10,7 @@ Based on the Prismatic MCP documentation and Salesforce MCP repository, the foll
 
 ### 1. Architecture Documentation Updates
 
-**File:** `ARCHITECTURE.md`
+**File:** `components/agentic-layer/architecture/ARCHITECTURE.md`
 
 - **Updated architecture diagram** to show Prismatic MCP Flow Server in the flow
 - **Added Prismatic deployment context** explaining how the server runs in Prismatic
@@ -21,7 +21,7 @@ Based on the Prismatic MCP documentation and Salesforce MCP repository, the foll
 
 ### 2. Configuration Updates
 
-**File:** `integration_mcp/config.py`
+**File:** `components/luminance-mcp/integration_mcp/config.py`
 
 Added new configuration options:
 - `prismatic_api_key`: API key for Prismatic GraphQL API
@@ -38,7 +38,7 @@ Added example configuration for:
 
 ### 3. Salesforce MCP Client
 
-**File:** `integration_mcp/salesforce_mcp_client.py` (NEW)
+**File:** `components/salesforce-mcp/salesforce_mcp_client.py` (NEW)
 
 Created a new Salesforce MCP client module that:
 - Connects to Salesforce MCP server (placeholder implementation)
@@ -54,7 +54,7 @@ Created a new Salesforce MCP client module that:
 
 ### 4. Company Context Tool Integration
 
-**File:** `integration_mcp/tools/company_context.py`
+**File:** `components/luminance-mcp/integration_mcp/tools/company_context.py`
 
 - **Added optional Salesforce MCP client parameter** to `get_company_context_tool()`
 - **Integrated Salesforce MCP query** in the tool execution
@@ -63,7 +63,7 @@ Created a new Salesforce MCP client module that:
 
 ### 5. Server Updates
 
-**File:** `integration_mcp/server.py`
+**File:** `components/luminance-mcp/integration_mcp/server.py`
 
 - **Added Salesforce MCP client initialization** in `main()`
 - **Integrated Salesforce MCP client** into tool handlers
@@ -83,7 +83,7 @@ Created a new Salesforce MCP client module that:
 - **Added Prismatic configuration** instructions
 - **Added Salesforce MCP configuration** instructions
 
-**File:** `QUICKSTART.md`
+**File:** `components/agentic-layer/runbooks/QUICKSTART.md`
 
 - **Added Prismatic prerequisites**
 - **Added Prismatic configuration** to environment variables example
@@ -93,7 +93,7 @@ Created a new Salesforce MCP client module that:
   - Salesforce MCP integration setup
 - **Updated next steps** with Prismatic and Salesforce references
 
-**File:** `PRISMATIC_DEPLOYMENT.md` (NEW)
+**File:** `components/agentic-layer/prismatic/PRISMATIC_DEPLOYMENT.md` (NEW)
 
 Created comprehensive Prismatic deployment guide covering:
 - Two deployment options (Agent Flow vs Custom MCP Server)
@@ -134,7 +134,7 @@ Created comprehensive Prismatic deployment guide covering:
 ### Salesforce MCP Integration
 
 1. **Set up Salesforce MCP Server** (see [Salesforce MCP Repository](https://github.com/salesforcecli/mcp))
-2. **Implement Connection Logic** in `salesforce_mcp_client.py`:
+2. **Implement Connection Logic** in `components/salesforce-mcp/salesforce_mcp_client.py`:
    - Stdio connection to Salesforce MCP server subprocess
    - Or HTTP/WebSocket connection if hosted
 3. **Implement Tool Calls**:
@@ -152,10 +152,10 @@ Created comprehensive Prismatic deployment guide covering:
 
 ```bash
 # Test without Salesforce MCP
-python -m integration_mcp.server
+PYTHONPATH=components/luminance-mcp python -m integration_mcp.server
 
 # Test with Salesforce MCP (when implemented)
-SALESFORCE_MCP_ENABLED=true python -m integration_mcp.server
+SALESFORCE_MCP_ENABLED=true PYTHONPATH=components/luminance-mcp python -m integration_mcp.server
 ```
 
 ### Prismatic Testing

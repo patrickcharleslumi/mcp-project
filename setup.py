@@ -6,7 +6,8 @@ setup(
     name="integration-mcp",
     version="0.1.0",
     description="MCP server for Luminance API semantic tools",
-    packages=find_packages(),
+    packages=find_packages("components/luminance-mcp"),
+    package_dir={"": "components/luminance-mcp"},
     python_requires=">=3.10",
     install_requires=[
         "mcp>=0.9.0",
@@ -16,10 +17,15 @@ setup(
         "python-dotenv>=1.0.0",
         "structlog>=24.1.0",
         "tenacity>=8.2.3",
+        "fastapi>=0.110.0",
+        "uvicorn>=0.27.0",
+        "cachetools>=5.3.2",
+        "prometheus-client>=0.20.0",
     ],
     entry_points={
         "console_scripts": [
             "integration-mcp=integration_mcp.server:main",
+            "luminance-mcp-http=mcp.server:main",
         ],
     },
 )

@@ -16,9 +16,9 @@ This guide walks you through building the Integration MCP Server in Prismatic an
 
 **We're building a separate code-native integration** using Prismatic's generic MCP template.
 
-**See the detailed step-by-step guide:** [STEP_BY_STEP_BUILD.md](./STEP_BY_STEP_BUILD.md)
+**See the detailed step-by-step guide:** [STEP_BY_STEP_BUILD.md](../runbooks/STEP_BY_STEP_BUILD.md)
 
-**Quick checklist:** [QUICK_CHECKLIST.md](./QUICK_CHECKLIST.md)
+**Quick checklist:** [QUICK_CHECKLIST.md](../runbooks/QUICK_CHECKLIST.md)
 
 **Option 2 (Custom MCP Server) is only recommended if:**
 - You need to aggregate multiple Prismatic integrations into one MCP server
