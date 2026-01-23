@@ -45,7 +45,7 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
 def redact_sensitive(data: Any, fields: list[str] = None) -> Any:
     """Redact sensitive fields from log data."""
     if fields is None:
-        fields = ["token", "password", "api_token", "authorization"]
+        fields = ["token", "password", "api_token", "api_key", "authorization"]
 
     if isinstance(data, dict):
         return {

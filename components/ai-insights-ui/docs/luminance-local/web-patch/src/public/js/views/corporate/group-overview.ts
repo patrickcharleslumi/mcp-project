@@ -1014,6 +1014,13 @@ room: ${!!this.room}, workflow_stage: ${!!this.workflow_stage}, relevant_group_v
                 workflow_stage: this.workflow_stage,
                 room: this.room,
             });
+            this.listenTo(
+                this.group_ai_insights_view,
+                'ai-agent:query',
+                (payload: { group_id: number; text: string }) => {
+                    this.handleAgentQuery(payload);
+                }
+            );
             this.listenTo(this.group_ai_insights_view, 'ai-action:approved', (payload: { action_id: string, title: string, description: string }) => {
                 this.addAiEventToActivity(payload);
             });
@@ -1021,6 +1028,35 @@ room: ${!!this.room}, workflow_stage: ${!!this.workflow_stage}, relevant_group_v
                 this.activity_tabs?.setBadge('ai_insights', payload);
             });
             this.group_ai_insights_view.appendElTo(this.$tabs.ai_insights).registerChildViewOf(this);
+        }
+    }
+
+    private async handleAgentQuery(payload: { group_id: number; text: string }): Promise<void> {
+        const view = this.group_ai_insights_view;
+        if (!view) return;
+        try {
+            const response = await Utils.Request.call(
+                `/api/groups/${payload.group_id}/ai_agent_query`,
+                'POST',
+                {
+                    content_type: 'application/json',
+                    data: JSON.stringify({ text: payload.text }),
+                }
+            );
+            const message = typeof response?.message === 'string'
+                ? response.message
+                : typeof response?.summary === 'string'
+                    ? response.summary
+                    : JSON.stringify(response);
+            view.addAgentMessage('Agent', message);
+            if (response?.insights_payload) {
+                view.applyInsights(response.insights_payload, { markNew: true });
+            }
+        } catch (error) {
+            console.warn('[GroupOverview] ai_agent_query failed', error);
+            view.addAgentMessage('System', 'Agent unavailable. Check server logs.');
+        } finally {
+            view.setThinking(false);
         }
     }
 

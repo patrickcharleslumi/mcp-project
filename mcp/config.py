@@ -46,8 +46,29 @@ class McpConfig(BaseSettings):
     # Feature flags
     feature_enabled: bool = Field(default=True, alias="MCP_FEATURE_ENABLED")
 
+    # LLM Proxy (agentic layer)
+    llm_proxy_enabled: bool = Field(default=False, alias="LLM_PROXY_ENABLED")
+    llm_proxy_base_url: Optional[str] = Field(default=None, alias="LLM_PROXY_BASE_URL")
+    llm_proxy_api_key: Optional[str] = Field(default=None, alias="LLM_PROXY_API_KEY")
+    llm_proxy_model: str = Field(default="luminance-criteria", alias="LLM_PROXY_MODEL")
+    llm_proxy_env: Optional[str] = Field(default=None, alias="LLM_PROXY_ENV")
+    llm_proxy_request_purpose: str = Field(
+        default="msa_optimization",
+        alias="LLM_PROXY_REQUEST_PURPOSE",
+    )
+    llm_proxy_provider_allowlist: Optional[str] = Field(
+        default=None,
+        alias="LLM_PROXY_PROVIDER_ALLOWLIST",
+    )
+    llm_proxy_fastlane: bool = Field(default=False, alias="LLM_PROXY_FASTLANE")
+    llm_proxy_timeout_seconds: int = Field(default=30, alias="LLM_PROXY_TIMEOUT_SECONDS")
+
     # Template catalog fallback (optional)
     template_catalog_path: Optional[str] = Field(default=None, alias="MCP_TEMPLATE_CATALOG_PATH")
+
+    # Salesforce MCP (optional)
+    salesforce_mcp_enabled: bool = Field(default=False, alias="SALESFORCE_MCP_ENABLED")
+    salesforce_mcp_endpoint: Optional[str] = Field(default=None, alias="SALESFORCE_MCP_ENDPOINT")
 
 
 config = McpConfig()

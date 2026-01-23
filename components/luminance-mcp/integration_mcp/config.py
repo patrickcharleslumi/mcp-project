@@ -22,6 +22,7 @@ class Config(BaseSettings):
     # Luminance API
     luminance_base_url: str = Field(..., alias="LUMINANCE_BASE_URL")
     luminance_api_token: str = Field(..., alias="LUMINANCE_API_TOKEN")
+    luminance_verify_tls: bool = Field(default=True, alias="LUMINANCE_VERIFY_TLS")
 
     # Server settings
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
@@ -30,6 +31,26 @@ class Config(BaseSettings):
 
     # Feature flags
     enable_signing_likelihood: bool = Field(default=True, alias="ENABLE_SIGNING_LIKELIHOOD")
+
+    # LLM Proxy configuration (optional)
+    llm_proxy_enabled: bool = Field(default=False, alias="LLM_PROXY_ENABLED")
+    llm_proxy_base_url: Optional[str] = Field(default=None, alias="LLM_PROXY_BASE_URL")
+    llm_proxy_api_key: Optional[str] = Field(default=None, alias="LLM_PROXY_API_KEY")
+    llm_proxy_model: str = Field(default="luminance-criteria", alias="LLM_PROXY_MODEL")
+    llm_proxy_env: Optional[str] = Field(default=None, alias="LLM_PROXY_ENV")
+    llm_proxy_request_purpose: str = Field(
+        default="msa_optimization",
+        alias="LLM_PROXY_REQUEST_PURPOSE",
+    )
+    llm_proxy_provider_allowlist: Optional[str] = Field(
+        default=None,
+        alias="LLM_PROXY_PROVIDER_ALLOWLIST",
+    )
+    llm_proxy_fastlane: bool = Field(default=False, alias="LLM_PROXY_FASTLANE")
+    llm_proxy_timeout_seconds: int = Field(
+        default=30,
+        alias="LLM_PROXY_TIMEOUT_SECONDS",
+    )
 
     # Prismatic Configuration (optional, for Prismatic-hosted deployment)
     prismatic_api_key: Optional[str] = Field(default=None, alias="PRISMATIC_API_KEY")

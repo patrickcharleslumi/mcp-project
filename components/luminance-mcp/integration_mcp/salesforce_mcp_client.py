@@ -7,7 +7,9 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-_MODULE_PATH = Path(__file__).resolve().parents[1] / "components" / "salesforce-mcp" / "salesforce_mcp_client.py"
+_MODULE_PATH = (
+    Path(__file__).resolve().parents[2] / "salesforce-mcp" / "salesforce_mcp_client.py"
+)
 
 
 def _load_salesforce_module() -> ModuleType:

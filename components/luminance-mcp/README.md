@@ -8,3 +8,6 @@ This is the production-grade HTTP MCP wrapper over Luminance endpoints.
 
 The stdio MCP server package also lives here:
 `components/luminance-mcp/integration_mcp/`.
+
+LLM proxy integration is optional and enabled via env vars. See the agentic
+layer quickstart for details.

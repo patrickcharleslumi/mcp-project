@@ -104,11 +104,17 @@ class LuminanceClient:
             return response
         except httpx.HTTPStatusError as exc:
             self._track_failure()
+            response_preview = ""
+            try:
+                response_preview = exc.response.text[:500]
+            except Exception:
+                response_preview = ""
             logger.error(
                 "Luminance API error",
                 status_code=exc.response.status_code,
                 path=path,
                 error=str(exc),
+                response_body=response_preview or None,
             )
             raise UpstreamError(
                 f"Luminance API error: {exc.response.status_code}",

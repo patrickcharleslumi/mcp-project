@@ -124,80 +124,11 @@ export class GroupAiInsightsView extends BaseView<Group.Model & Resolved> {
                 `/api/groups/${group_id}/ai_insights`,
                 'GET'
             );
-            if (this.isPayloadEmpty(payload)) return this.getMockInsights();
             return payload;
         } catch (error) {
-            console.warn('[GroupAiInsightsView] Falling back to mock insights payload', error);
-            return this.getMockInsights();
+            console.warn('[GroupAiInsightsView] Failed to fetch insights payload', error);
+            throw error;
         }
-    }
-
-    getMockInsights(): GroupAiInsightsView.InsightsPayload {
-        return {
-            summary: {
-                items: [
-                    { label: 'Account', value: 'Acme Corporation' },
-                    { label: 'Opportunity', value: 'FY26 Enterprise Renewal' },
-                    { label: 'Deal value', value: '$2.4M ARR' },
-                    { label: 'Stage', value: 'Negotiation', severity: 'medium' },
-                    { label: 'Close date', value: '2026-02-18' },
-                    { label: 'Renewal risk', value: 'High churn risk', severity: 'high' },
-                ],
-                reasoning: [
-                    'CRM shows a renewal opportunity with a 28‑day close window.',
-                    'Redlines indicate liability cap exceeds current policy threshold.',
-                    'Account exec flagged pricing sensitivity in recent renewal notes.',
-                ],
-                confidence: 0.76,
-            },
-            recommendations: [
-                {
-                    id: 'notify_account_exec',
-                    title: 'Notify account executive',
-                    description: 'Send a summary to the AE with key legal risks and proposed fallback positions.',
-                    rationale: 'CRM notes show customer requested 60‑day payment terms and uncapped liability.',
-                    confidence: 0.82,
-                    preview: {
-                        transitions: ['Internal review → Executive alignment'],
-                        notifications: ['Account Executive', 'Legal lead'],
-                        systems: ['Matter workflow', 'Email', 'CRM'],
-                    },
-                },
-                {
-                    id: 'update_crm_fields',
-                    title: 'Update CRM opportunity',
-                    description: 'Sync legal risk flags and updated close date back to the CRM.',
-                    rationale: 'Opportunity close date is within 4 weeks; risk flags not yet recorded.',
-                    confidence: 0.68,
-                    preview: {
-                        transitions: ['CRM: Pending → Updated'],
-                        notifications: ['Sales Ops'],
-                        systems: ['CRM', 'Matter workflow'],
-                    },
-                },
-                {
-                    id: 'prepare_fallbacks',
-                    title: 'Prepare fallback positions',
-                    description: 'Draft fallback language for liability cap and termination for convenience.',
-                    rationale: 'Customer is negotiating on two high‑risk clauses.',
-                    confidence: 0.61,
-                    preview: {
-                        transitions: ['Clause review → Fallback prepared'],
-                        notifications: ['Legal team'],
-                        systems: ['Matter workflow'],
-                    },
-                },
-            ],
-            workflow_preview: {
-                transitions: ['Negotiation → Executive alignment'],
-                notifications: ['Account Executive', 'Legal lead', 'Sales Ops'],
-                systems: ['Workflow engine', 'Email', 'CRM'],
-            },
-            metadata: {
-                new_insights_count: 3,
-                last_updated: new Date().toISOString(),
-            },
-        };
     }
 
     isPayloadEmpty(payload: GroupAiInsightsView.InsightsPayload) {
@@ -270,11 +201,6 @@ export class GroupAiInsightsView extends BaseView<Group.Model & Resolved> {
         this.$agent_input.val('');
         this.addAgentMessage('You', text);
         this.setThinking(true, 'Lumi is thinking');
-        window.setTimeout(() => {
-            this.addAgentMessage('Agent', this.getMockAgentResponse(text));
-            this.setThinking(false);
-            this.emitBadgeState();
-        }, 5000);
         this.trigger('ai-agent:query', { group_id: this.model.get('id'), text });
     }
 
@@ -290,20 +216,6 @@ export class GroupAiInsightsView extends BaseView<Group.Model & Resolved> {
         this.$agent_chat_log.scrollTop(this.$agent_chat_log.prop('scrollHeight'));
     }
 
-    getMockAgentResponse(question: string) {
-        const normalized = question.trim().toLowerCase();
-        if (normalized === 'summarise the changes to this contract so far') {
-            return [
-                'Summary for Acme Corp:',
-                '- Liability cap adjusted to 12 months fees with confidentiality carve-outs.',
-                '- Termination for convenience now allows 60 days notice by customer.',
-                '- Change of control now requires prior written consent.',
-                '- Assignment clause updated to allow affiliate assignment with notice.',
-                '- Payment terms aligned to Net 30 days; no change to governing law.',
-            ].join('\n');
-        }
-        return 'Summary: I can surface key deltas, risks, and action items. Ask about specific clauses or the latest redlines.';
-    }
 
     setThinking(is_thinking: boolean, label: string = 'Lumi is thinking') {
         this.$agent_thinking.toggleClass('hidden', !is_thinking);

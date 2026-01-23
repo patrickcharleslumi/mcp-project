@@ -6,6 +6,7 @@
 - Access to Luminance API (base URL and bearer token)
 - (Optional) Prismatic account and API key for Prismatic deployment
 - (Optional) Salesforce MCP server for company context enrichment
+- (Optional) Luminance LLM Proxy access for AI insights generation
 
 ## Installation
 
@@ -47,6 +48,17 @@
    # Optional: Salesforce MCP configuration
    # SALESFORCE_MCP_ENABLED=false
    # SALESFORCE_MCP_ENDPOINT=http://localhost:3000
+
+  # Optional: LLM Proxy configuration (OpenAI-compatible)
+  # LLM_PROXY_ENABLED=false
+  # LLM_PROXY_BASE_URL=https://dev-qa-eu-west-2.llm.luminance.com
+  # LLM_PROXY_API_KEY=your-llm-proxy-api-key
+  # LLM_PROXY_MODEL=luminance-criteria
+  # LLM_PROXY_ENV=dev-local
+  # LLM_PROXY_REQUEST_PURPOSE=msa_optimization
+  # LLM_PROXY_PROVIDER_ALLOWLIST=aws,azure
+  # LLM_PROXY_FASTLANE=false
+  # LLM_PROXY_TIMEOUT_SECONDS=30
    ```
 
 ## Running the Server
@@ -210,6 +222,21 @@ result = await session.call_tool(
                 }
             }
         ]
+    }
+)
+```
+
+### 5. Generate MSA Insights (LLM Proxy)
+
+```python
+result = await session.call_tool(
+    "generate_msa_insights",
+    arguments={
+        "project_id": 789,
+        "document_id": 456,
+        "clause_types": ["liability_cap", "indemnity", "termination"],
+        "focus_area": "negotiation_risk",
+        "max_clauses_per_type": 5
     }
 )
 ```

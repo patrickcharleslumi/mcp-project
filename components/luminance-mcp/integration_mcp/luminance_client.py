@@ -62,6 +62,7 @@ class LuminanceClient:
                 "Content-Type": "application/json",
             },
             timeout=httpx.Timeout(config.tool_timeout_seconds),
+            verify=config.luminance_verify_tls,
         )
 
     async def close(self) -> None:

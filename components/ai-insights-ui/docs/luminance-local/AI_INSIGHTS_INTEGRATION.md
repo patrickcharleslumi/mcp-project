@@ -82,6 +82,22 @@ type InsightsPayload = {
 3. Agent sends payload to browser via MCP channel.
 4. Browser calls `window.__ai_insights_bridge.updateGroupInsights(...)`.
 
+## LLM Proxy usage (optional)
+If you want the agent to call the Luminance LLM Proxy for insight generation,
+use the OpenAI-compatible endpoint:
+
+```
+POST /v1/chat/completions
+```
+
+Required headers (placeholders only):
+- `Authorization: Bearer <LLM_PROXY_API_KEY>`
+- `Luminance-Env: <env-id>`
+- `Luminance-Request-Purpose: msa_optimization`
+- `Luminance-AI-Provider-Allowlist: aws,azure` (optional)
+
+Use `LLM_PROXY_*` environment variables in this repo to wire the agentic layer.
+
 ## Mock behavior (local demo)
 While the real MCP connection is offline:
 - AI Insights uses a **mock payload** with Salesforce‑style content.

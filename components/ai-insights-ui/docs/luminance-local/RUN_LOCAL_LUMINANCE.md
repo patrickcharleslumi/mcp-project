@@ -146,6 +146,22 @@ commit;"
 - Navigate to **Corporate → Matters → Acme Corp - MSA**
 - AI Insights tab should render with mock insights and AI agent chat.
 
+## 8) (Optional) Live insights via LLM proxy
+If you want the agentic layer to generate live insights from the Luminance LLM
+Proxy, enable it in the MCP env:
+
+```
+LLM_PROXY_ENABLED=true
+LLM_PROXY_BASE_URL=https://dev-qa-eu-west-2.llm.luminance.com
+LLM_PROXY_API_KEY=your-llm-proxy-api-key
+LLM_PROXY_MODEL=luminance-criteria
+LLM_PROXY_ENV=dev-local
+LLM_PROXY_REQUEST_PURPOSE=msa_optimization
+```
+
+Then call the MCP tool `generate_msa_insights` and feed its JSON payload into
+`window.__ai_insights_bridge.updateGroupInsights(...)`.
+
 ## Notes / Troubleshooting
 - If the UI shows blank: check `/tmp/gulp.log` for TypeScript/LESS errors.
 - For “fake table” errors, ensure ES is running and `analyze=true` is used where appropriate.

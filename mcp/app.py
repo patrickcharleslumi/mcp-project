@@ -10,6 +10,9 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from prometheus_client import generate_latest
 
 from mcp.clients.luminance import LuminanceClient
+from mcp.clients.llm_proxy import LlmProxyClient
+from mcp.config import config
+from mcp.controllers.agent_routes import build_agent_router
 from mcp.controllers.mcp_routes import build_router
 from mcp.exceptions import McpError
 from mcp.logging import get_logger, setup_logging
@@ -20,6 +23,8 @@ from mcp.services.clause_search import ClauseSearchService
 from mcp.services.group_info import GroupInfoService
 from mcp.services.templates import TemplateService
 from mcp.services.version_compare import VersionCompareService
+from mcp.services.ai_insights import AiInsightsService
+from mcp.services.salesforce_context import SalesforceContextService
 
 logger = get_logger(__name__)
 
@@ -28,11 +33,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     setup_logging()
     client = LuminanceClient()
     app.state.luminance_client = client
+    llm_proxy_client = None
+    salesforce_service = SalesforceContextService()
     version_service = VersionCompareService(client)
     clause_service = ClauseSearchService(client)
     group_service = GroupInfoService(client)
     template_service = TemplateService(client)
     bulk_service = BulkEnrichService(group_service)
+    agent_service = None
+    if config.llm_proxy_enabled:
+        llm_proxy_client = LlmProxyClient()
+        agent_service = AiInsightsService(client, llm_proxy_client, salesforce_service)
     app.include_router(
         build_router(
             version_service=version_service,
@@ -42,8 +53,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             bulk_service=bulk_service,
         )
     )
+    app.include_router(build_agent_router(agent_service))
     logger.info("MCP wrapper started")
     yield
+    if llm_proxy_client:
+        await llm_proxy_client.close()
+    await salesforce_service.close()
     await client.close()
     logger.info("MCP wrapper shutdown complete")
 
@@ -88,7 +103,16 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(McpError)
     async def mcp_error_handler(request: Request, exc: McpError) -> JSONResponse:
-        logger.warning("MCP error", error=exc.message, code=exc.error_code)
+        logger.warning(
+            "MCP error",
+            error=exc.message,
+            code=exc.error_code,
+            status=exc.status_code,
+            path=request.url.path,
+            method=request.method,
+            request_id=getattr(request.state, "request_id", None),
+            hint=exc.hint,
+        )
         return JSONResponse(
             status_code=exc.status_code,
             content={
@@ -102,7 +126,13 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(Exception)
     async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
-        logger.error("Unhandled error", error=str(exc))
+        logger.error(
+            "Unhandled error",
+            error=str(exc),
+            path=request.url.path,
+            method=request.method,
+            request_id=getattr(request.state, "request_id", None),
+        )
         return JSONResponse(
             status_code=500,
             content={

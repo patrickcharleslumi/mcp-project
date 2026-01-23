@@ -1,14 +1,22 @@
 .group-ai-insights-view {
     display: flex;
     flex-direction: column;
-    row-gap: 24px;
+    row-gap: 16px;
     background: @page-background-colour;
     border-radius: @view-container-border-radius;
     padding: 6px;
-    max-height: calc(100dvh - 260px);
-    overflow-y: auto;
+    height: 100%;
     min-height: 0;
-    padding-bottom: 18px;
+
+    .ai-insights-content {
+        display: flex;
+        flex-direction: column;
+        row-gap: 24px;
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding-bottom: 18px;
+    }
 
     .ai-panel {
         border: 1px solid @border-colour;
@@ -304,6 +312,7 @@
     }
 
     .ai-agent-panel {
+        flex: 0 0 auto;
         .agent-chat {
             display: flex;
             flex-direction: column;
