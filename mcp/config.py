@@ -69,6 +69,14 @@ class McpConfig(BaseSettings):
     # Salesforce MCP (optional)
     salesforce_mcp_enabled: bool = Field(default=False, alias="SALESFORCE_MCP_ENABLED")
     salesforce_mcp_endpoint: Optional[str] = Field(default=None, alias="SALESFORCE_MCP_ENDPOINT")
+    salesforce_mcp_commercial_context_path: str = Field(
+        default="/tools/get-salesforce-commercial-context",
+        alias="SALESFORCE_MCP_COMMERCIAL_CONTEXT_PATH",
+    )
+    salesforce_mcp_signing_likelihood_path: str = Field(
+        default="/tools/estimate-signing-likelihood",
+        alias="SALESFORCE_MCP_SIGNING_LIKELIHOOD_PATH",
+    )
 
 
 config = McpConfig()

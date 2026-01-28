@@ -34,23 +34,40 @@ class SalesforceMcpClient:
         if self.client:
             await self.client.aclose()
 
-    async def search_opportunities(self, query: str) -> list[dict[str, Any]]:
+    async def get_commercial_context(self, query: str) -> Optional[dict[str, Any]]:
         if not self.client or not query.strip():
-            return []
+            return None
 
-        payload = {"query": query.strip(), "limit": 5}
+        payload = {"query": query.strip()}
         try:
-            response = await self.client.post("/opportunities/search", json=payload)
+            response = await self.client.post(config.salesforce_mcp_commercial_context_path, json=payload)
             response.raise_for_status()
             data = response.json()
         except Exception as exc:
-            logger.warning("Salesforce MCP request failed", error=str(exc))
+            logger.warning("Salesforce MCP commercial context request failed", error=str(exc))
+            return None
+
+        if isinstance(data, dict):
+            payload_data = data.get("data")
+            if isinstance(payload_data, dict):
+                return payload_data
+        return None
+
+    async def estimate_signing_likelihood(self, scenarios: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if not self.client or not scenarios:
+            return []
+
+        payload = {"scenarios": scenarios}
+        try:
+            response = await self.client.post(config.salesforce_mcp_signing_likelihood_path, json=payload)
+            response.raise_for_status()
+            data = response.json()
+        except Exception as exc:
+            logger.warning("Salesforce MCP signing likelihood request failed", error=str(exc))
             return []
 
         if isinstance(data, dict):
-            records = data.get("records")
-            if isinstance(records, list):
-                return [record for record in records if isinstance(record, dict)]
-        if isinstance(data, list):
-            return [record for record in data if isinstance(record, dict)]
+            results = data.get("data")
+            if isinstance(results, list):
+                return [result for result in results if isinstance(result, dict)]
         return []

@@ -127,6 +127,8 @@ def _build_summary_from_salesforce(
 
     stage_close = _format_stage_close(opportunity.stage_name, opportunity.close_date) or "Unknown"
     arr_value = _format_currency(opportunity.arr) or _format_currency(opportunity.acv) or "Unknown"
+    org_value_parts = [part for part in [opportunity.region, opportunity.business_unit] if part]
+    organization_value = " · ".join(org_value_parts) if org_value_parts else "Unknown"
     review_value_parts = [
         f"Legal: {_format_bool(opportunity.legal_required) or 'Unknown'}",
         f"Security: {_format_bool(opportunity.security_review_required) or 'Unknown'}",
@@ -146,9 +148,10 @@ def _build_summary_from_salesforce(
         health_value = f"{health_value} · Procurement pressure {opportunity.procurement_pressure}"
 
     items = [
-        {"label": "Account", "value": opportunity.account_name},
+        {"label": "Opportunity", "value": opportunity.opportunity_name},
         {"label": "Stage / Close", "value": stage_close},
         {"label": "ARR (est.)", "value": arr_value},
+        {"label": "Region / BU", "value": organization_value},
         {
             "label": "Legal / Security review",
             "value": review_value,
@@ -156,7 +159,7 @@ def _build_summary_from_salesforce(
         },
         {
             "label": "Commercials",
-            "value": discount_value,
+            "value": discount_value if opportunity.payment_terms is None else f"{discount_value} · {opportunity.payment_terms}",
             "severity": "medium" if opportunity.discount and opportunity.discount >= 15 else None,
         },
         {"label": "Customer health", "value": health_value, "severity": _health_severity(opportunity.customer_health)},
@@ -263,7 +266,7 @@ class AiInsightsService:
         user_prompt = {
             "matter_name": matter_name,
             "document_name": document_name,
-            "opportunity": opportunity.__dict__ if opportunity else None,
+            "salesforce_commercial_context": opportunity.__dict__ if opportunity else None,
             "clauses": clause_texts,
             "instructions": "Generate 3-5 concise, actionable recommendations for this matter.",
         }
@@ -377,7 +380,7 @@ class AiInsightsService:
             "document": document_summary or {"name": document_name},
             "clauses_sample": clause_samples,
             "clause_count": len(clause_texts),
-            "salesforce_opportunity": opportunity.__dict__ if opportunity else None,
+            "salesforce_commercial_context": opportunity.__dict__ if opportunity else None,
             "conversation_history": self._get_memory(group_id),
         }
 

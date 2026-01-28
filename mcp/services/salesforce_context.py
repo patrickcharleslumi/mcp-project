@@ -15,30 +15,30 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class SalesforceOpportunity:
-    name: str
-    account_name: str
-    stage_name: str
+    opportunity_id: str
+    opportunity_name: str
+    stage_name: Optional[str]
     close_date: Optional[str]
     region: Optional[str]
     business_unit: Optional[str]
-    legal_required: Optional[bool]
-    security_review_required: Optional[bool]
     acv: Optional[float]
     arr: Optional[float]
     discount: Optional[float]
     total_discount: Optional[float]
     payment_terms: Optional[str]
+    legal_required: Optional[bool]
+    security_review_required: Optional[bool]
+    non_standard_terms_requested: Optional[bool]
+    redline_count: Optional[int]
     main_competitors: Optional[str]
     procurement_pressure: Optional[str]
+    procurement_category: Optional[str]
     contract_start_date: Optional[str]
     contract_end_date: Optional[str]
     renewal_date: Optional[str]
-    renewal_notice_period: Optional[int]
+    renewal_notice_period: Optional[str]
     auto_renewal: Optional[bool]
     next_step: Optional[str]
-    non_standard_terms_requested: Optional[bool]
-    redline_count: Optional[int]
-    procurement_category: Optional[str]
     open_cases_count: Optional[int]
     max_open_case_severity: Optional[str]
     sla_breach: Optional[bool]
@@ -73,23 +73,8 @@ def _parse_int(value: Optional[str]) -> Optional[int]:
     return int(number) if number is not None else None
 
 
-def _normalize(text: str) -> list[str]:
-    cleaned = re.sub(r"[^a-z0-9]+", " ", text.lower())
-    return [token for token in cleaned.split() if token]
-
-
-def _extract_account_name(opportunity_name: str) -> str:
-    for separator in (" – ", " - ", " — "):
-        if separator in opportunity_name:
-            return opportunity_name.split(separator, 1)[0].strip()
-    return opportunity_name.strip()
-
-
-def _score_match(matter_tokens: list[str], opportunity_name: str) -> int:
-    if not matter_tokens:
-        return 0
-    tokens = _normalize(opportunity_name)
-    return len(set(matter_tokens).intersection(tokens))
+def _normalize(text: str) -> str:
+    return re.sub(r"\s+", " ", text.strip())
 
 
 class SalesforceContextService:
@@ -105,54 +90,69 @@ class SalesforceContextService:
         if not matter_name:
             return None
 
-        opportunities: list[SalesforceOpportunity] = []
-        if self.client.enabled:
-            raw_records = await self.client.search_opportunities(matter_name)
-            for record in raw_records:
-                parsed = self._parse_record(record)
-                if parsed:
-                    opportunities.append(parsed)
-
-        if not opportunities:
+        if not self.client.enabled:
             return None
 
-        matter_tokens = _normalize(matter_name)
-        best = max(opportunities, key=lambda opp: _score_match(matter_tokens, opp.name))
-        return best
-
-    def _parse_record(self, record: dict[str, object]) -> Optional[SalesforceOpportunity]:
-        name = str(record.get("Name") or "").strip()
-        if not name:
+        payload = await self.client.get_commercial_context(matter_name)
+        if not payload:
             return None
 
-        account_name = _extract_account_name(name)
+        parsed = self._parse_commercial_context(payload)
+        if not parsed:
+            logger.info("Salesforce commercial context missing required fields", matter_name=_normalize(matter_name))
+        return parsed
+
+    def _parse_commercial_context(self, payload: dict[str, object]) -> Optional[SalesforceOpportunity]:
+        opportunity_id = _normalize(str(payload.get("opportunity_id") or ""))
+        opportunity_name = _normalize(str(payload.get("opportunity_name") or ""))
+        if not opportunity_id or not opportunity_name:
+            return None
+
+        deal_stage = payload.get("deal_stage") if isinstance(payload.get("deal_stage"), dict) else {}
+        organization = payload.get("organization") if isinstance(payload.get("organization"), dict) else {}
+        financial_metrics = payload.get("financial_metrics") if isinstance(payload.get("financial_metrics"), dict) else {}
+        legal_and_security = (
+            payload.get("legal_and_security") if isinstance(payload.get("legal_and_security"), dict) else {}
+        )
+        competitive_landscape = (
+            payload.get("competitive_landscape") if isinstance(payload.get("competitive_landscape"), dict) else {}
+        )
+        contract_dates = payload.get("contract_dates") if isinstance(payload.get("contract_dates"), dict) else {}
+        renewal_information = (
+            payload.get("renewal_information") if isinstance(payload.get("renewal_information"), dict) else {}
+        )
+        next_steps = payload.get("next_steps") if isinstance(payload.get("next_steps"), dict) else {}
+        customer_health = payload.get("customer_health") if isinstance(payload.get("customer_health"), dict) else {}
+
         return SalesforceOpportunity(
-            name=name,
-            account_name=account_name,
-            stage_name=str(record.get("StageName") or "").strip(),
-            close_date=str(record.get("CloseDate") or "").strip() or None,
-            region=str(record.get("Region__c") or "").strip() or None,
-            business_unit=str(record.get("Business_Unit__c") or "").strip() or None,
-            legal_required=_parse_bool(str(record.get("Legal_Required__c") or "")),
-            security_review_required=_parse_bool(str(record.get("Security_Review_Required__c") or "")),
-            acv=_parse_float(str(record.get("ACV__c") or "")),
-            arr=_parse_float(str(record.get("ARR__c") or "")),
-            discount=_parse_float(str(record.get("Discount__c") or "")),
-            total_discount=_parse_float(str(record.get("Total_Discount__c") or "")),
-            payment_terms=str(record.get("Payment_Terms__c") or "").strip() or None,
-            main_competitors=str(record.get("MainCompetitors__c") or "").strip() or None,
-            procurement_pressure=str(record.get("Procurement_Pressure__c") or "").strip() or None,
-            contract_start_date=str(record.get("Contract_Start_Date__c") or "").strip() or None,
-            contract_end_date=str(record.get("Contract_End_Date__c") or "").strip() or None,
-            renewal_date=str(record.get("Renewal_Date__c") or "").strip() or None,
-            renewal_notice_period=_parse_int(str(record.get("Renewal_Notice_Period__c") or "")),
-            auto_renewal=_parse_bool(str(record.get("AutoRenewal__c") or "")),
-            next_step=str(record.get("NextStep__c") or "").strip() or None,
-            non_standard_terms_requested=_parse_bool(str(record.get("Non_Standard_Terms_Requested__c") or "")),
-            redline_count=_parse_int(str(record.get("Redline_Count__c") or "")),
-            procurement_category=str(record.get("Procurement_Category__c") or "").strip() or None,
-            open_cases_count=_parse_int(str(record.get("Open_Cases_Count__c") or "")),
-            max_open_case_severity=str(record.get("Max_Open_Case_Severity__c") or "").strip() or None,
-            sla_breach=_parse_bool(str(record.get("SLA_Breach__c") or "")),
-            customer_health=str(record.get("Customer_Health__c") or "").strip() or None,
+            opportunity_id=opportunity_id,
+            opportunity_name=opportunity_name,
+            stage_name=_normalize(str(deal_stage.get("stage_name") or "")) or None,
+            close_date=_normalize(str(deal_stage.get("close_date") or "")) or None,
+            region=_normalize(str(organization.get("region") or "")) or None,
+            business_unit=_normalize(str(organization.get("business_unit") or "")) or None,
+            acv=_parse_float(str(financial_metrics.get("acv") or "")),
+            arr=_parse_float(str(financial_metrics.get("arr") or "")),
+            discount=_parse_float(str(financial_metrics.get("discount") or "")),
+            total_discount=_parse_float(str(financial_metrics.get("total_discount") or "")),
+            payment_terms=_normalize(str(financial_metrics.get("payment_terms") or "")) or None,
+            legal_required=_parse_bool(str(legal_and_security.get("legal_required") or "")),
+            security_review_required=_parse_bool(str(legal_and_security.get("security_review_required") or "")),
+            non_standard_terms_requested=_parse_bool(
+                str(legal_and_security.get("non_standard_terms_requested") or "")
+            ),
+            redline_count=_parse_int(str(legal_and_security.get("redline_count") or "")),
+            main_competitors=_normalize(str(competitive_landscape.get("main_competitors") or "")) or None,
+            procurement_pressure=_normalize(str(competitive_landscape.get("procurement_pressure") or "")) or None,
+            procurement_category=_normalize(str(competitive_landscape.get("procurement_category") or "")) or None,
+            contract_start_date=_normalize(str(contract_dates.get("contract_start_date") or "")) or None,
+            contract_end_date=_normalize(str(contract_dates.get("contract_end_date") or "")) or None,
+            renewal_date=_normalize(str(renewal_information.get("renewal_date") or "")) or None,
+            renewal_notice_period=_normalize(str(renewal_information.get("renewal_notice_period") or "")) or None,
+            auto_renewal=_parse_bool(str(renewal_information.get("auto_renewal") or "")),
+            next_step=_normalize(str(next_steps.get("next_step") or "")) or None,
+            open_cases_count=_parse_int(str(customer_health.get("open_cases_count") or "")),
+            max_open_case_severity=_normalize(str(customer_health.get("max_open_case_severity") or "")) or None,
+            sla_breach=_parse_bool(str(customer_health.get("sla_breach") or "")),
+            customer_health=_normalize(str(customer_health.get("customer_health") or "")) or None,
         )
