@@ -63,6 +63,44 @@
             padding-bottom: 4px;
         }
 
+        .summary-widgets {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px 16px;
+            margin-top: 12px;
+        }
+
+        .summary-widget {
+            display: flex;
+            flex-direction: column;
+            row-gap: 4px;
+            padding: 10px 12px;
+            border-radius: @inner-container-border-radius;
+            background: @secondary-background-colour;
+            border: 1px solid fade(@border-colour, 70%);
+
+            .label {
+                font-size: @secondary-text-size;
+                color: @secondary-text-colour;
+                text-transform: uppercase;
+                letter-spacing: 0.02em;
+            }
+
+            .value {
+                font-weight: @label-text-weight;
+                color: @secondary-text-colour;
+            }
+
+            .value.placeholder {
+                color: @tertiary-text-colour;
+            }
+
+            .meta {
+                font-size: @tertiary-text-size;
+                color: @tertiary-text-colour;
+            }
+        }
+
         .summary-row {
             display: flex;
             flex-direction: column;
@@ -100,6 +138,7 @@
         }
     }
 
+
     .confidence-badge {
         background: @primary-background-colour;
         color: @secondary-text-colour;
@@ -109,94 +148,6 @@
         font-weight: @label-text-weight;
     }
 
-    .ai-recommendations-panel {
-        .recommendations-list {
-            display: flex;
-            flex-direction: column;
-            row-gap: 14px;
-        }
-
-        .ai-action-item {
-            border: 1px solid @border-colour;
-            border-radius: @view-container-border-radius;
-            padding: 14px;
-            display: flex;
-            flex-direction: column;
-            row-gap: 10px;
-            background-color: @white-colour;
-
-            &.approved {
-                border-color: @positive-green-colour;
-                background-color: fade(@positive-green-colour, 8%);
-            }
-
-            &.removed {
-                opacity: 0.5;
-                text-decoration: line-through;
-            }
-
-            .action-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-            }
-
-            .title-and-confidence {
-                display: flex;
-                flex-direction: column;
-                row-gap: 4px;
-            }
-
-            .title {
-                font-weight: @heading-text-weight;
-                color: @secondary-text-colour;
-            }
-
-            .confidence {
-                font-size: @secondary-text-size;
-                color: @secondary-text-colour;
-            }
-
-            .action-controls {
-                display: flex;
-                column-gap: 8px;
-            }
-
-            .description {
-                color: @primary-text-colour;
-            }
-
-            .reasoning {
-                color: @secondary-text-colour;
-                border-left: 3px solid @border-colour;
-                padding-left: 10px;
-                background: @secondary-background-colour;
-                border-radius: @inner-container-border-radius;
-                padding: 10px;
-            }
-
-            .editor {
-                display: flex;
-                flex-direction: column;
-                row-gap: 8px;
-
-                label {
-                    font-size: @secondary-text-size;
-                    color: @secondary-text-colour;
-                }
-
-                textarea {
-                    min-height: 70px;
-                }
-
-                .editor-actions {
-                    display: flex;
-                    column-gap: 8px;
-                    justify-content: flex-end;
-                }
-            }
-        }
-    }
 
     .ai-matter-tags-panel {
         .tags-list {

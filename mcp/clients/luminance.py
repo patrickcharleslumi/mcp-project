@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
+import os
 import time
 from typing import Any, Optional
 
@@ -45,6 +48,8 @@ class LuminanceClient:
         self.rate_limiter = RateLimiter(config.rate_limit_per_minute, 60)
         self.failure_count = 0
         self.circuit_open_until: Optional[float] = None
+        self._refresh_lock = asyncio.Lock()
+        self._token_last_refreshed_at: Optional[float] = None
         self.client = httpx.AsyncClient(
             base_url=self.base_url,
             headers={
@@ -54,9 +59,62 @@ class LuminanceClient:
             timeout=httpx.Timeout(config.request_timeout_seconds),
             verify=config.luminance_verify_tls,
         )
+        self._token_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(config.request_timeout_seconds),
+            verify=config.luminance_verify_tls,
+        )
 
     async def close(self) -> None:
         await self.client.aclose()
+        await self._token_client.aclose()
+
+    async def _refresh_token(self) -> bool:
+        async with self._refresh_lock:
+            now = time.time()
+            if self._token_last_refreshed_at and now - self._token_last_refreshed_at < 30:
+                return False
+
+            token_url = os.environ.get("LUMINANCE_OAUTH_TOKEN_URL")
+            client_id = os.environ.get("LUMINANCE_OAUTH_CLIENT_ID")
+            client_secret = os.environ.get("LUMINANCE_OAUTH_CLIENT_SECRET")
+            cred_file = os.environ.get("CRED_FILE")
+
+            if cred_file and os.path.exists(cred_file):
+                try:
+                    with open(cred_file, "r", encoding="utf-8") as handle:
+                        creds = json.load(handle)
+                    token_url = token_url or creds.get("token_url")
+                    client_id = client_id or creds.get("client_id")
+                    client_secret = client_secret or creds.get("client_secret")
+                except Exception as exc:
+                    logger.warning("Failed to load OAuth credentials file", error=str(exc))
+
+            if not token_url or not client_id or not client_secret:
+                logger.warning("OAuth credentials missing, cannot refresh token")
+                return False
+
+            try:
+                response = await self._token_client.post(
+                    token_url,
+                    data={"grant_type": "client_credentials"},
+                    auth=(client_id, client_secret),
+                )
+                response.raise_for_status()
+                payload = response.json()
+            except httpx.HTTPError as exc:
+                logger.error("Failed to refresh Luminance API token", error=str(exc))
+                return False
+
+            access_token = payload.get("access_token")
+            if not access_token:
+                logger.error("Token refresh response missing access_token")
+                return False
+
+            self.api_token = access_token
+            self.client.headers["Authorization"] = f"Bearer {self.api_token}"
+            self._token_last_refreshed_at = time.time()
+            logger.info("Refreshed Luminance API token")
+            return True
 
     async def _request(
         self,
@@ -92,6 +150,8 @@ class LuminanceClient:
         )
         async def _do_request() -> Any:
             response = await self.client.request(method, path, params=params, json=json, headers=headers)
+            if response.status_code == 401 and await self._refresh_token():
+                response = await self.client.request(method, path, params=params, json=json, headers=headers)
             response.raise_for_status()
             if not response.content:
                 return {}
