@@ -110,6 +110,10 @@ plugs into the agentic layer.
 
 - `SALESFORCE_MCP_COMMERCIAL_CONTEXT_PATH` (default `/tools/get-salesforce-commercial-context`)
 
+**Live endpoint (EU Central):**
+
+- `https://hooks.eu-central-1.integrations.luminance.com/trigger/SW5zdGFuY2VGbG93Q29uZmlnOjE2MWQ2OGRlLWZkZDEtNDZiNC1hZmE2LTE5ZmI3MzUzMTVmMg==`
+
 ## Tool: Estimate Signing Likelihood
 
 **Tool name:** `estimate-signing-likelihood`
@@ -158,3 +162,7 @@ plugs into the agentic layer.
 **Endpoint placeholder:**
 
 - `SALESFORCE_MCP_SIGNING_LIKELIHOOD_PATH` (default `/tools/estimate-signing-likelihood`)
+
+**Live endpoint (EU Central):**
+
+- `https://hooks.eu-central-1.integrations.luminance.com/trigger/SW5zdGFuY2VGbG93Q29uZmlnOjgxMGJiMzhmLWEyM2EtNGFiZS05M2NmLTcwN2VkOWJjZjViNA==`
