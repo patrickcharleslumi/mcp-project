@@ -1,15 +1,136 @@
-import { flow } from "@prismatic-io/spectral";
+import { flow, util } from "@prismatic-io/spectral";
 import zod from "zod";
 import { createSalesforceClient } from "./salesforceClient";
+
+type JsonRecord = Record<string, unknown>;
+
+const getConfigString = (context: any, key: string): string =>
+  util.types.toString(context.configVars[key] ?? "").trim();
+
+const getLuminanceAuth = (context: any): { baseUrl: string; clientId: string; clientSecret: string } => {
+  const connection = (context.configVars as Record<string, any>)["Luminance API Connection"];
+  const tokenUrl =
+    util.types.toString(connection?.fields?.tokenUrl ?? "") ||
+    new URL("/auth/oauth2/token", getConfigString(context, "Luminance Base URL")).toString();
+  const baseUrl = tokenUrl.replace("/auth/oauth2/token", "");
+  const clientId =
+    util.types.toString(connection?.fields?.clientId ?? "") || getConfigString(context, "Luminance Client ID");
+  const clientSecret =
+    util.types.toString(connection?.fields?.clientSecret ?? "") ||
+    getConfigString(context, "Luminance Client Secret");
+  return { baseUrl, clientId, clientSecret };
+};
+
+const normalizeKey = (value?: string): string =>
+  (value ?? "").trim().toLowerCase();
+
+const extractString = (value: unknown): string | undefined => {
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+  return undefined;
+};
+
+const extractAnnotationValue = (annotation: JsonRecord): string | undefined => {
+  const direct = extractString(annotation.value) || extractString(annotation.text);
+  if (direct) return direct;
+  const content = annotation.content;
+  if (typeof content === "string") return content.trim();
+  if (content && typeof content === "object") {
+    const record = content as JsonRecord;
+    const candidates = [
+      record.value,
+      record.party,
+      record.name,
+      record.counterparty,
+      record.text,
+      record.label,
+    ];
+    for (const candidate of candidates) {
+      const result = extractString(candidate);
+      if (result) return result;
+    }
+  }
+  return undefined;
+};
+
+const resolveCounterpartyFromAnnotations = (
+  annotations: JsonRecord[],
+  tagKey: string
+): string | undefined => {
+  const normalizedTagKey = normalizeKey(tagKey);
+  for (const annotation of annotations) {
+    const annotationType = (annotation.annotation_type ?? annotation.type ?? {}) as JsonRecord;
+    const typeKey = extractString(annotationType.key) || extractString(annotationType.type);
+    const typeName = extractString(annotationType.name) || extractString(annotationType.label);
+    const annotationTypeKey = extractString(annotation.annotation_type_key);
+    const candidates = [typeKey, typeName, annotationTypeKey].map(normalizeKey);
+    if (normalizedTagKey && candidates.includes(normalizedTagKey)) {
+      const value = extractAnnotationValue(annotation);
+      if (value) return value;
+    }
+  }
+  return undefined;
+};
+
+const fetchLuminanceToken = async (
+  baseUrl: string,
+  clientId: string,
+  clientSecret: string
+): Promise<string> => {
+  const tokenUrl = new URL("/auth/oauth2/token", baseUrl).toString();
+  const auth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+  const response = await fetch(tokenUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${auth}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: "grant_type=client_credentials",
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Luminance token request failed (${response.status}): ${text}`);
+  }
+  const payload = (await response.json()) as JsonRecord;
+  const token = extractString(payload.access_token);
+  if (!token) {
+    throw new Error("Luminance token response missing access_token.");
+  }
+  return token;
+};
+
+const fetchMatterAnnotations = async (
+  baseUrl: string,
+  token: string,
+  divisionId: string,
+  matterId: string
+): Promise<JsonRecord[]> => {
+  const path = `/api2/projects/${divisionId}/matters/${matterId}/annotations`;
+  const url = new URL(path, baseUrl).toString();
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Luminance annotations request failed (${response.status}): ${text}`);
+  }
+  const payload = await response.json();
+  return Array.isArray(payload) ? (payload as JsonRecord[]) : [];
+};
 
 // Schema definition for Salesforce commercial context validation
 const SalesforceCommercialContextSchema = zod
   .object({
     opportunityId: zod.string().optional(),
     opportunityName: zod.string().optional(),
+    matterId: zod.union([zod.string(), zod.number()]).optional(),
   })
-  .refine((data) => data.opportunityId || data.opportunityName, {
-    message: "Either opportunityId or opportunityName must be provided",
+  .refine((data) => data.opportunityId || data.opportunityName || data.matterId, {
+    message: "Either opportunityId, opportunityName, or matterId must be provided",
   });
 
 export const getSalesforceCommercialContext = flow({
@@ -39,6 +160,11 @@ export const getSalesforceCommercialContext = flow({
           description:
             "Opportunity Name to search for. Optional if opportunityId provided.",
         },
+        matterId: {
+          type: "string",
+          description:
+            "Luminance matter ID. When provided, the integration resolves the counterparty name from Luminance tags.",
+        },
       },
       required: [],
     },
@@ -47,14 +173,51 @@ export const getSalesforceCommercialContext = flow({
     const salesforceClient = await createSalesforceClient(context);
 
     // Validate and extract parameters
-    const { opportunityId, opportunityName } =
+    const { opportunityId, opportunityName, matterId } =
       SalesforceCommercialContextSchema.parse(
         params.onTrigger.results.body.data,
       );
 
+    let resolvedOpportunityName = opportunityName;
+    const resolvedMatterId = matterId ? String(matterId) : "";
+
+    if (!opportunityId && resolvedMatterId) {
+      const { baseUrl: luminanceBaseUrl, clientId: luminanceClientId, clientSecret: luminanceClientSecret } =
+        getLuminanceAuth(context);
+      const luminanceDivisionId = getConfigString(context, "Luminance Division");
+      if (!luminanceBaseUrl || !luminanceClientId || !luminanceClientSecret) {
+        throw new Error("Luminance credentials missing for matterId lookup.");
+      }
+      if (!luminanceDivisionId) {
+        throw new Error("Luminance Division is required for matterId lookup.");
+      }
+
+      const tagKey = getConfigString(context, "Counterparty Name Tag");
+      if (!tagKey) {
+        throw new Error("Counterparty tag key missing. Configure the tag picker.");
+      }
+
+      const token = await fetchLuminanceToken(
+        luminanceBaseUrl,
+        luminanceClientId,
+        luminanceClientSecret
+      );
+      const annotations = await fetchMatterAnnotations(
+        luminanceBaseUrl,
+        token,
+        luminanceDivisionId,
+        resolvedMatterId
+      );
+      resolvedOpportunityName = resolveCounterpartyFromAnnotations(annotations, tagKey);
+      if (!resolvedOpportunityName) {
+        throw new Error(`Counterparty tag "${tagKey}" not found on matter ${resolvedMatterId}.`);
+      }
+    }
+
     context.logger.info("Getting Salesforce commercial context", {
       opportunityId,
-      opportunityName,
+      opportunityName: resolvedOpportunityName,
+      matterId: resolvedMatterId || undefined,
     });
 
     let opportunity: any;
@@ -97,9 +260,9 @@ export const getSalesforceCommercialContext = flow({
       }
 
       opportunity = queryResult.data.records[0];
-    } else if (opportunityName) {
+    } else if (resolvedOpportunityName) {
       // Query by name - escape single quotes for SOQL
-      const escapedName = escapeSoqlString(opportunityName);
+      const escapedName = escapeSoqlString(resolvedOpportunityName);
       const soqlQuery = `SELECT
         Id, Name, StageName, CloseDate, Region__c, Business_Unit__c,
         Legal_Required__c, Security_Review_Required__c, ACV__c, ARR__c,
@@ -120,13 +283,13 @@ export const getSalesforceCommercialContext = flow({
       );
 
       if (!queryResult.data.records || queryResult.data.records.length === 0) {
-        throw new Error(`Opportunity with name "${opportunityName}" not found`);
+        throw new Error(`Opportunity with name "${resolvedOpportunityName}" not found`);
       }
 
       opportunity = queryResult.data.records[0];
     } else {
       throw new Error(
-        "Either opportunityId or opportunityName must be provided",
+        "Either opportunityId, opportunityName, or matterId must be provided",
       );
     }
 

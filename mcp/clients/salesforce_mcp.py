@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Optional
 
 import httpx
@@ -34,15 +35,35 @@ class SalesforceMcpClient:
         if self.client:
             await self.client.aclose()
 
-    async def get_commercial_context(self, query: str) -> Optional[dict[str, Any]]:
+    async def get_commercial_context(
+        self,
+        query: str,
+        matter_id: Optional[int] = None,
+    ) -> Optional[dict[str, Any]]:
         if not self.client or not query.strip():
             return None
 
-        payload = {"query": query.strip()}
+        cleaned = query.strip()
+        # Prefer opportunityId when the matter name looks like a Salesforce ID.
+        # Fallback to opportunityName for fuzzy matching in the Prismatic flow.
+        if re.fullmatch(r"006[0-9A-Za-z]{12,15}", cleaned):
+            payload = {"opportunityId": cleaned}
+        else:
+            payload = {"opportunityName": cleaned}
+        if matter_id is not None:
+            payload["matterId"] = matter_id
         try:
             response = await self.client.post(config.salesforce_mcp_commercial_context_path, json=payload)
             response.raise_for_status()
             data = response.json()
+        except httpx.HTTPStatusError as exc:
+            response_text = exc.response.text if exc.response is not None else ""
+            logger.warning(
+                "Salesforce MCP commercial context request failed",
+                status=exc.response.status_code if exc.response else None,
+                response=response_text[:1000],
+            )
+            return None
         except Exception as exc:
             logger.warning("Salesforce MCP commercial context request failed", error=str(exc))
             return None
@@ -62,6 +83,14 @@ class SalesforceMcpClient:
             response = await self.client.post(config.salesforce_mcp_signing_likelihood_path, json=payload)
             response.raise_for_status()
             data = response.json()
+        except httpx.HTTPStatusError as exc:
+            response_text = exc.response.text if exc.response is not None else ""
+            logger.warning(
+                "Salesforce MCP signing likelihood request failed",
+                status=exc.response.status_code if exc.response else None,
+                response=response_text[:1000],
+            )
+            return []
         except Exception as exc:
             logger.warning("Salesforce MCP signing likelihood request failed", error=str(exc))
             return []

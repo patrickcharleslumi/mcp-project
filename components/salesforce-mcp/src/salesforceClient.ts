@@ -43,11 +43,28 @@ export async function createSalesforceClient(
     );
   }
 
-  const normalizePrivateKey = (rawKey: string): string => {
-    if (!rawKey) return rawKey;
+  const normalizePrivateKey = (rawKey: string): crypto.KeyObject => {
+    if (!rawKey || !rawKey.trim()) {
+      throw new Error("Salesforce private key missing.");
+    }
     let key = rawKey.trim();
+    if (
+      (key.startsWith("\"") && key.endsWith("\"")) ||
+      (key.startsWith("'") && key.endsWith("'"))
+    ) {
+      key = key.slice(1, -1).trim();
+    }
     if (key.includes("\\n")) {
       key = key.replace(/\\n/g, "\n");
+    }
+    if (key.includes("\\r\\n")) {
+      key = key.replace(/\\r\\n/g, "\n");
+    }
+
+    if (key.includes("ENCRYPTED")) {
+      throw new Error(
+        "Salesforce private key is encrypted. Provide an unencrypted PKCS#8 PEM."
+      );
     }
 
     const pemMatch = key.match(/-----BEGIN ([A-Z ]+PRIVATE KEY)-----/);
@@ -56,23 +73,83 @@ export async function createSalesforceClient(
     const end = pemType ? `-----END ${pemType}-----` : "-----END PRIVATE KEY-----";
 
     // If no PEM markers, treat as base64 body and wrap as PKCS#8.
+    let rawBody: string | null = null;
     if (!pemMatch || !key.includes(end)) {
-      const body = key.replace(/\s+/g, "");
-      if (!body) return key;
-      const lines = body.match(/.{1,64}/g) ?? [];
-      return `-----BEGIN PRIVATE KEY-----\n${lines.join("\n")}\n-----END PRIVATE KEY-----`;
+      rawBody = key.replace(/\s+/g, "");
+      if (!rawBody) {
+        throw new Error("Salesforce private key missing.");
+      }
+      try {
+        const decoded = Buffer.from(rawBody, "base64").toString("utf8").trim();
+        if (decoded.includes("-----BEGIN") && decoded.includes("PRIVATE KEY-----")) {
+          key = decoded;
+        }
+      } catch {
+        // Ignore base64 decode errors and continue with wrapping.
+      }
     }
 
-    const body = key
-      .replace(begin, "")
-      .replace(end, "")
-      .replace(/\s+/g, "");
-    if (!body) {
-      return key;
+    if (!key.includes("-----BEGIN")) {
+      const lines = (rawBody ?? "").match(/.{1,64}/g) ?? [];
+      key = `-----BEGIN PRIVATE KEY-----\n${lines.join("\n")}\n-----END PRIVATE KEY-----`;
     }
-    const lines = body.match(/.{1,64}/g) ?? [];
-    return `${begin}\n${lines.join("\n")}\n${end}`;
+
+    if (!key.includes("-----BEGIN")) {
+      throw new Error("Salesforce private key missing.");
+    }
+
+    if (key.includes("BEGIN EC PRIVATE KEY")) {
+      throw new Error("Salesforce private key must be RSA, not EC.");
+    }
+
+    if (key.includes("BEGIN PRIVATE KEY") || key.includes("BEGIN RSA PRIVATE KEY")) {
+      const pemMatchFinal = key.match(/-----BEGIN ([A-Z ]+PRIVATE KEY)-----/);
+      const pemTypeFinal = pemMatchFinal?.[1];
+      const beginFinal = pemTypeFinal
+        ? `-----BEGIN ${pemTypeFinal}-----`
+        : "-----BEGIN PRIVATE KEY-----";
+      const endFinal = pemTypeFinal
+        ? `-----END ${pemTypeFinal}-----`
+        : "-----END PRIVATE KEY-----";
+
+      const body = key
+        .replace(beginFinal, "")
+        .replace(endFinal, "")
+        .replace(/\s+/g, "");
+      if (!body) {
+        throw new Error("Salesforce private key missing.");
+      }
+      const lines = body.match(/.{1,64}/g) ?? [];
+      key = `${beginFinal}\n${lines.join("\n")}\n${endFinal}`;
+    }
+
+    const pemMatchFinal = key.match(/-----BEGIN ([A-Z ]+PRIVATE KEY)-----/);
+    const pemTypeFinal = pemMatchFinal?.[1];
+    const typeHint =
+      pemTypeFinal === "RSA PRIVATE KEY"
+        ? "pkcs1"
+        : pemTypeFinal === "PRIVATE KEY"
+          ? "pkcs8"
+          : undefined;
+
+    try {
+      const keyObject = typeHint
+        ? crypto.createPrivateKey({ key, format: "pem", type: typeHint })
+        : crypto.createPrivateKey(key);
+
+      if (keyObject.asymmetricKeyType !== "rsa") {
+        throw new Error("Salesforce private key must be RSA.");
+      }
+      return keyObject;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Salesforce private key invalid or unsupported format. Use unencrypted PKCS#8 PEM with line breaks. ${message}`
+      );
+    }
   };
+
+ 
 
   const normalizedPrivateKey = normalizePrivateKey(privateKey);
 
@@ -98,10 +175,18 @@ export async function createSalesforceClient(
   const message = `${encodedHeader}.${encodedPayload}`;
 
   // Sign the message
-  const signature = crypto
-    .createSign('RSA-SHA256')
-    .update(message)
-    .sign(normalizedPrivateKey, 'base64url');
+  let signature: string;
+  try {
+    signature = crypto
+      .createSign('RSA-SHA256')
+      .update(message)
+      .sign(normalizedPrivateKey, 'base64url');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Salesforce private key signing failed. Ensure an unencrypted RSA private key. ${message}`
+    );
+  }
 
   const jwt = `${message}.${signature}`;
 

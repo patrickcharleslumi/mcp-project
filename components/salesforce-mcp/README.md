@@ -96,7 +96,7 @@ npm run build
 
 ### Salesforce Connection
 
-For the Salesforce commercial context tool, you'll need to configure JWT Bearer authentication with these 4 required fields:
+For the Salesforce commercial context tool, you'll need to configure JWT Bearer authentication with these 4 required fields. The Private Key must be an unencrypted PEM (PKCS#8 preferred); single-line or escaped `\n` keys are normalized automatically.
 
 - **Salesforce Token URL**: OAuth2 token URL (use your org's custom domain URL for best results)
   - Example: `https://orgfarm-e2bbca81d6-dev-ed.develop.my.salesforce.com/services/oauth2/token`
@@ -109,10 +109,16 @@ For the Salesforce commercial context tool, you'll need to configure JWT Bearer 
 
 ### Luminance Connection
 
-Some downstream tools (like signing likelihood workflows) require a Luminance API token. Configure these fields in the instance:
+For Luminance API access we use OAuth2 client credentials. Configure the **Luminance API Connection** first (preferred), or fill the base URL/client credentials directly.
 
+- **Luminance API Connection**: OAuth2 Client Credentials connection (Token URL, Client ID, Client Secret)
 - **Luminance Base URL**: e.g. `https://localhost:4000`
-- **Luminance API Token**: bearer token for the Luminance API
+- **Luminance Client ID**: OAuth2 client ID
+- **Luminance Client Secret**: OAuth2 client secret
+- **Luminance Division**: Select the Luminance division (dynamic list)
+- **Counterparty Name Tag**: Select the matter tag that stores the counterparty name (dynamic list)
+
+Deprecated fields removed from the wizard; only client credentials are used.
 
 ## Testing the integration
 

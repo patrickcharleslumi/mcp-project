@@ -1,0 +1,21 @@
+{
+  "name": "@component-manifests/luminanceApi",
+  "version": "2026.1.29-t-23.14.7",
+  "main": "dist/index.js",
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "npm run clean && tsc",
+    "prepare": "npm run build"
+  },
+  "files": [
+    "dist/"
+  ],
+  "devDependencies": {
+    "@prismatic-io/spectral": "10.11.3",
+    "rimraf": "5.0.7",
+    "typescript": "5.5.3"
+  },
+  "peerDependencies": {
+    "@prismatic-io/spectral": ">= 10.11.3"
+  }
+}

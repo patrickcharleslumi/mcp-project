@@ -88,6 +88,33 @@ def _format_stage_close(stage: Optional[str], close_date: Optional[str]) -> Opti
     return stage or close_date
 
 
+def _extract_counterparty_name(matter: Optional[dict[str, Any]]) -> Optional[str]:
+    if not isinstance(matter, dict):
+        return None
+    raw = matter.get("counterparty") or matter.get("counterparty_value") or matter.get("counterpartyValue")
+    if isinstance(raw, str):
+        return raw.strip() or None
+    if isinstance(raw, dict):
+        for key in ("name", "value", "label", "counterparty_name"):
+            value = raw.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return None
+
+
+def _extract_salesforce_query(text: str) -> Optional[str]:
+    if not text:
+        return None
+    normalized = text.strip()
+    match = re.search(r"\bfor\s+(.+)$", normalized, flags=re.IGNORECASE)
+    if match:
+        return match.group(1).strip().strip('"').strip("'") or None
+    match = re.search(r"\babout\s+(.+)$", normalized, flags=re.IGNORECASE)
+    if match:
+        return match.group(1).strip().strip('"').strip("'") or None
+    return None
+
+
 def _pick_fields(source: Any, keys: list[str]) -> dict[str, Any]:
     if not isinstance(source, dict):
         return {}
@@ -249,7 +276,16 @@ class AiInsightsService:
 
         matter_name = matter.get("name") if isinstance(matter, dict) else None
         document_name = document.get("name") if isinstance(document, dict) else None
-        opportunity = await self.salesforce_context.find_opportunity(matter_name or document_name or "")
+        counterparty_name = _extract_counterparty_name(matter)
+        query_override = _extract_salesforce_query(text)
+        if query_override:
+            counterparty_name = query_override
+        opportunity = await self.salesforce_context.find_opportunity(
+            counterparty_name=counterparty_name,
+            matter_name=matter_name,
+            document_name=document_name,
+            matter_id=group_id,
+        )
         summary = _build_summary_from_salesforce(opportunity, matter_name, document_name)
 
         recommendations: list[dict[str, Any]] = []
@@ -336,7 +372,13 @@ class AiInsightsService:
 
         matter_name = matter.get("name") if isinstance(matter, dict) else None
         document_name = document.get("name") if isinstance(document, dict) else None
-        opportunity = await self.salesforce_context.find_opportunity(matter_name or document_name or "")
+        counterparty_name = _extract_counterparty_name(matter)
+        opportunity = await self.salesforce_context.find_opportunity(
+            counterparty_name=counterparty_name,
+            matter_name=matter_name,
+            document_name=document_name,
+            matter_id=group_id,
+        )
 
         matter_summary = _pick_fields(
             matter,
@@ -368,8 +410,10 @@ class AiInsightsService:
         system_prompt = (
             "You are Lumi, the Luminance AI assistant for legal document analysis. "
             "Always respond using the latest context provided. "
-            "If information is incomplete, state any assumptions and the missing data, "
-            "but still give the best possible answer. "
+            "Prioritise Salesforce commercial context when present. "
+            "If Salesforce context is missing, clearly state that it could not be resolved from the "
+            "Counterparty Name matter tag and suggest verifying the tag mapping. "
+            "Do not speculate or claim Salesforce data you do not have. "
             "Do not ask the user to provide basic context that is already in the payload. "
             "Use matter-centric language (not 'group'). "
             "Keep responses concise, professional, and plain text (no markdown)."
@@ -378,6 +422,8 @@ class AiInsightsService:
             "question": text,
             "matter": matter_summary or {"name": matter_name},
             "document": document_summary or {"name": document_name},
+            "counterparty_name": counterparty_name,
+            "matter_id": group_id,
             "clauses_sample": clause_samples,
             "clause_count": len(clause_texts),
             "salesforce_commercial_context": opportunity.__dict__ if opportunity else None,

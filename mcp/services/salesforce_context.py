@@ -86,14 +86,22 @@ class SalesforceContextService:
     async def close(self) -> None:
         await self.client.close()
 
-    async def find_opportunity(self, matter_name: str) -> Optional[SalesforceOpportunity]:
-        if not matter_name:
-            return None
-
+    async def find_opportunity(
+        self,
+        counterparty_name: Optional[str],
+        matter_name: Optional[str],
+        document_name: Optional[str],
+        matter_id: Optional[int],
+    ) -> Optional[SalesforceOpportunity]:
         if not self.client.enabled:
             return None
 
-        payload = await self.client.get_commercial_context(matter_name)
+        query_candidates = [counterparty_name, matter_name, document_name]
+        query = next((value for value in query_candidates if value and value.strip()), None)
+        if not query:
+            return None
+
+        payload = await self.client.get_commercial_context(query, matter_id=matter_id)
         if not payload:
             return None
 
