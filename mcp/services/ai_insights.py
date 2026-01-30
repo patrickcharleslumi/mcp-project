@@ -150,9 +150,8 @@ def _build_summary_from_salesforce(
             "items": fallback_items,
             "widgets": [],  # No widgets when Salesforce data unavailable
             "reasoning": [
-                "Salesforce context was not found for this matter. Verify the Salesforce MCP connection or data source.",
+                "No matching opportunity found in Salesforce. Check that the counterparty name matches a Salesforce record.",
             ],
-            "confidence": 0.3,
         }
 
     stage_close = _format_stage_close(opportunity.stage_name, opportunity.close_date) or "Unknown"
@@ -308,7 +307,6 @@ def _build_summary_from_salesforce(
         "items": items,
         "widgets": widgets,
         "reasoning": reasoning[:4],
-        "confidence": 0.7,
     }
 
 
@@ -400,8 +398,8 @@ class AiInsightsService:
         matter_name = matter.get("name") if isinstance(matter, dict) else None
         document_name = document.get("name") if isinstance(document, dict) else None
         counterparty_name = _extract_counterparty_name(matter)
-        # HARDCODED FOR DEMO: Use "ACME Corporation" for Salesforce lookup
-        counterparty_name = counterparty_name or "ACME Corporation"
+        # HARDCODED FOR DEMO: Use "Helios Energy" for Salesforce lookup
+        counterparty_name = counterparty_name or "Helios Energy"
         opportunity = await self.salesforce_context.find_opportunity(
             counterparty_name=counterparty_name,
             matter_name=matter_name,
@@ -506,8 +504,8 @@ class AiInsightsService:
         matter_name = matter.get("name") if isinstance(matter, dict) else None
         document_name = document.get("name") if isinstance(document, dict) else None
         counterparty_name = _extract_counterparty_name(matter)
-        # HARDCODED FOR DEMO: Use "ACME Corporation" for Salesforce lookup
-        counterparty_name = counterparty_name or "ACME Corporation"
+        # HARDCODED FOR DEMO: Use "Helios Energy" for Salesforce lookup
+        counterparty_name = counterparty_name or "Helios Energy"
 
         # Current matter's opportunity
         opportunity = await self.salesforce_context.find_opportunity(
@@ -516,6 +514,14 @@ class AiInsightsService:
             document_name=document_name,
             matter_id=group_id,
         )
+
+        # Fetch signing likelihood for risk factors and actionable recommendations
+        signing_likelihood = await self.salesforce_context.get_signing_likelihood(
+            counterparty_name=counterparty_name,
+            matter_name=matter_name,
+        )
+        risk_factors = signing_likelihood.get("risk_factors", []) if signing_likelihood else []
+        recommendations = signing_likelihood.get("recommendations", []) if signing_likelihood else []
 
         # Check if user is asking about a DIFFERENT company
         other_company = self._extract_company_from_query(text, counterparty_name)
@@ -655,8 +661,17 @@ class AiInsightsService:
         current_region = opportunity.region if opportunity else None
         current_acv = opportunity.acv if opportunity else None
         current_close = opportunity.close_date if opportunity else None
+        current_probability = opportunity.probability if opportunity else None
         
         acv_context = f"${current_acv:,.0f}" if current_acv else "Not specified"
+        probability_context = f"{current_probability}%" if current_probability else "Unknown"
+        
+        # Build risk context from signing likelihood
+        risk_context = ""
+        if risk_factors:
+            risk_context = "\n\nIDENTIFIED FRICTION POINTS:\n" + "\n".join(f"- {rf}" for rf in risk_factors)
+        if recommendations:
+            risk_context += "\n\nRECOMMENDED ACTIONS:\n" + "\n".join(f"- {rec}" for rec in recommendations)
         
         system_prompt = (
             "You are Lumi, a sales intelligence AI. Provide CLEAN, STRUCTURED responses.\n\n"
@@ -665,19 +680,27 @@ class AiInsightsService:
             "[If listing companies, use this format - one per line]\n"
             "• Company Name — Stage, Key Metric (e.g. ACV $X or Probability X%)\n\n"
             "💡 INSIGHT\n"
-            "[2-3 sentences of analysis. Be specific with numbers and comparisons.]\n\n"
+            "[2-3 sentences of analysis. Be specific about friction points and blockers.]\n\n"
             "⚡ ACTION\n"
-            "[One clear, specific action starting with a verb.]\n\n"
+            "[One SPECIFIC, CONCRETE action that addresses the #1 friction point. "
+            "Must include WHO should do WHAT by WHEN. Example: 'Schedule a call with the procurement lead this week to define the next step and move from pipeline to committed.']\n\n"
             "RULES:\n"
             "1. ALWAYS use the three sections above (📊 💡 ⚡)\n"
-            "2. Keep total response under 120 words\n"
-            "3. Be PRESCRIPTIVE - 'Prioritize X' not 'consider X'\n"
-            "4. Use actual data - cite ACVs, probabilities, dates\n"
-            "5. If no results, say 'No matching deals found' in RESULTS section\n\n"
+            "2. Keep total response under 150 words\n"
+            "3. Actions must be SPECIFIC - reference actual friction points, not generic advice\n"
+            "4. Use actual data - cite ACVs, probabilities, dates, stages\n"
+            "5. If comparing deals, note what successful closures had in common\n"
+            "6. If no results, say 'No matching deals found' in RESULTS section\n"
+            "7. MISSING DATA: If a field like TCV/ACV is not set, DON'T say 'N/A' or get stuck on it. "
+            "Instead, note it as 'not yet finalised' and focus on the data that IS available. "
+            "Missing commercial values in early-stage deals is normal - infer this context.\n\n"
             f"CURRENT DEAL:\n"
-            f"{opportunity.opportunity_name if opportunity else 'Unknown'} — {current_stage}, Health: {current_health}, ACV: {acv_context}"
+            f"{opportunity.opportunity_name if opportunity else 'Unknown'} — {current_stage}, "
+            f"Probability: {probability_context}, Health: {current_health}, ACV: {acv_context}, "
+            f"Close: {current_close or 'Not set'}"
+            f"{risk_context}"
             f"{search_context}\n\n"
-            "Deliver conclusions like an expert advisor."
+            "Deliver conclusions like an expert advisor who knows this deal's specific blockers."
         )
 
         user_prompt = {
