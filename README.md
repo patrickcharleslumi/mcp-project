@@ -282,6 +282,45 @@ curl -X POST "https://hooks.prismatic.io/trigger/<your-instance>" \
 
 ---
 
+## Demo Guide
+
+### What You'll Show
+
+1. **AI Insights Panel** - Auto-populated widgets when opening a matter:
+   - Deal Outcome (Won/Lost/Open with close date)
+   - Immediate Action (context-appropriate next step)
+   - Customer Success (health status and recommendations)
+   - Contract Action (specific contract-related guidance)
+
+2. **AI Agent** - Natural language queries about the deal and portfolio
+
+### Demo Prompts (ACME Corporation Example)
+
+```
+Prompt 1: What is the current status of this ACME deal and what should I do next?
+```
+*Shows: Context-aware status summary with actionable next steps*
+
+```
+Prompt 2: How does ACME compare to our other closed won deals in terms of value?
+```
+*Shows: Cross-portfolio analysis with concrete ACV numbers*
+
+```
+Prompt 3: What similar deals have we closed that I can use as precedent for ACME?
+```
+*Shows: AI-powered search to find comparable deals for benchmarking*
+
+### Demo Flow
+
+1. Open the **ACME Corporation** matter in Luminance
+2. Click the **AI Insights** tab
+3. Point out the auto-populated **widgets** (pulled from Salesforce in real-time)
+4. Use the **agent chat** to ask the demo prompts above
+5. Highlight how external CRM data informs contract decisions
+
+---
+
 ## Key Technical Decisions
 
 ### Why MCP?
