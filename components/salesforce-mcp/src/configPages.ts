@@ -1,25 +1,10 @@
-import {
-  configPage,
-  configVar,
-  dataSourceConfigVar,
-  connectionConfigVar,
-  OAuth2Type,
-} from "@prismatic-io/spectral";
-
-const getConfigString = (context: any, key: string): string =>
-  String(context?.configVars?.[key] ?? "").trim();
+import { configPage, configVar, dataSourceConfigVar } from "@prismatic-io/spectral";
 
 const getLuminanceAuth = (context: any): { baseUrl: string; clientId: string; clientSecret: string } => {
-  const connection = context?.configVars?.["Luminance API Connection"];
-  const connectionTokenUrl = String(connection?.fields?.tokenUrl ?? "").trim();
-  const baseUrlInput = getConfigString(context, "Luminance Base URL");
-  const tokenUrl = connectionTokenUrl || (baseUrlInput ? new URL("/auth/oauth2/token", baseUrlInput).toString() : "");
+  const tokenUrl = String(context?.configVars?.["Luminance Token URL"] ?? "").trim();
   const baseUrl = tokenUrl ? tokenUrl.replace("/auth/oauth2/token", "") : "";
-  const clientId =
-    String(connection?.fields?.clientId ?? "").trim() || getConfigString(context, "Luminance Client ID");
-  const clientSecret =
-    String(connection?.fields?.clientSecret ?? "").trim() ||
-    getConfigString(context, "Luminance Client Secret");
+  const clientId = String(context?.configVars?.["Luminance Client ID"] ?? "").trim();
+  const clientSecret = String(context?.configVars?.["Luminance Client Secret"] ?? "").trim();
   return { baseUrl, clientId, clientSecret };
 };
 
@@ -54,61 +39,16 @@ const fetchLuminanceToken = async (
  * Only the 4 required Salesforce settings for JWT.
  */
 export const configPages = {
-  "Initial Configuration": configPage({
-    tagline: "Set up Luminance and Salesforce connections for this instance.",
-    elements: {
-      "Setup Instructions": `
-        <p>Configure the Luminance API connection first so we can load divisions and matter tags.</p>
-        <p>Then configure Salesforce credentials and select the Counterparty Name tag mapping.</p>
-      `,
-      "Luminance API Connection": connectionConfigVar({
-        stableKey: "luminance-api-connection",
-        dataType: "connection",
-        description: "OAuth2 Client Credentials connection for Luminance API.",
-        permissionAndVisibilityType: "customer",
-        visibleToOrgDeployer: true,
-        oauth2Type: OAuth2Type.ClientCredentials,
-        inputs: {
-          tokenUrl: {
-            label: "Token URL",
-            type: "string",
-            required: true,
-            shown: true,
-            default: "https://localhost:4000/auth/oauth2/token",
-          },
-          scopes: {
-            label: "Scopes",
-            type: "string",
-            required: false,
-            shown: true,
-            comments: "Space-delimited scopes (optional)",
-          },
-          clientId: {
-            label: "Client ID",
-            type: "string",
-            required: true,
-            shown: true,
-          },
-          clientSecret: {
-            label: "Client Secret",
-            type: "password",
-            required: true,
-            shown: true,
-          },
-        },
-      }),
-    },
-  }),
   "Luminance API": configPage({
     tagline: "Configure Luminance API access used by dynamic pickers.",
     elements: {
-      "Luminance Base URL": configVar({
-        stableKey: "luminance-base-url",
+      "Luminance Token URL": configVar({
+        stableKey: "luminance-token-url",
         dataType: "string",
-        description: "Luminance API base URL (e.g., https://localhost:4000).",
+        description: "OAuth2 token URL for the Luminance API.",
         permissionAndVisibilityType: "customer",
         visibleToOrgDeployer: true,
-        defaultValue: "https://localhost:4000",
+        defaultValue: "https://localhost:4000/auth/oauth2/token",
       }),
       "Luminance Client ID": configVar({
         stableKey: "luminance-client-id",

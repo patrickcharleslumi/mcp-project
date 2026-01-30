@@ -4,20 +4,11 @@ import { createSalesforceClient } from "./salesforceClient";
 
 type JsonRecord = Record<string, unknown>;
 
-const getConfigString = (context: any, key: string): string =>
-  util.types.toString(context.configVars[key] ?? "").trim();
-
 const getLuminanceAuth = (context: any): { baseUrl: string; clientId: string; clientSecret: string } => {
-  const connection = (context.configVars as Record<string, any>)["Luminance API Connection"];
-  const tokenUrl =
-    util.types.toString(connection?.fields?.tokenUrl ?? "") ||
-    new URL("/auth/oauth2/token", getConfigString(context, "Luminance Base URL")).toString();
+  const tokenUrl = util.types.toString(context.configVars["Luminance Token URL"] ?? "");
   const baseUrl = tokenUrl.replace("/auth/oauth2/token", "");
-  const clientId =
-    util.types.toString(connection?.fields?.clientId ?? "") || getConfigString(context, "Luminance Client ID");
-  const clientSecret =
-    util.types.toString(connection?.fields?.clientSecret ?? "") ||
-    getConfigString(context, "Luminance Client Secret");
+  const clientId = util.types.toString(context.configVars["Luminance Client ID"] ?? "");
+  const clientSecret = util.types.toString(context.configVars["Luminance Client Secret"] ?? "");
   return { baseUrl, clientId, clientSecret };
 };
 
@@ -170,7 +161,14 @@ export const getSalesforceCommercialContext = flow({
     },
   },
   onExecution: async (context, params) => {
-    const salesforceClient = await createSalesforceClient(context);
+    let salesforceClient;
+    try {
+      salesforceClient = await createSalesforceClient(context);
+    } catch (authError) {
+      const msg = authError instanceof Error ? authError.message : String(authError);
+      context.logger.error("Salesforce authentication failed", { error: msg });
+      throw new Error(`Salesforce auth failed: ${msg}`);
+    }
 
     // Validate and extract parameters
     const { opportunityId, opportunityName, matterId } =
@@ -235,25 +233,29 @@ export const getSalesforceCommercialContext = flow({
         );
       }
 
-      // Query by ID - Salesforce IDs are safe to use directly
+      // Query by ID - use only standard Salesforce fields
       const soqlQuery = `SELECT
-        Id, Name, StageName, CloseDate, Region__c, Business_Unit__c,
-        Legal_Required__c, Security_Review_Required__c, ACV__c, ARR__c,
-        Discount__c, Total_Discount__c, Payment_Terms__c, MainCompetitors__c,
-        Procurement_Pressure__c, Contract_Start_Date__c, Contract_End_Date__c,
-        Renewal_Date__c, Renewal_Notice_Period__c, AutoRenewal__c, NextStep__c,
-        Non_Standard_Terms_Requested__c, Redline_Count__c, Procurement_Category__c,
-        Open_Cases_Count__c, Max_Open_Case_Severity__c, SLA_Breach__c, Customer_Health__c
+        Id, Name, StageName, CloseDate, Amount, Probability, NextStep
         FROM Opportunity
         WHERE Id = '${opportunityId}'
         LIMIT 1`;
 
-      const queryResult = await salesforceClient.get(
-        "/services/data/v58.0/query",
-        {
-          params: { q: soqlQuery },
-        },
-      );
+      context.logger.info("Executing SOQL query by ID", { query: soqlQuery });
+
+      let queryResult;
+      try {
+        queryResult = await salesforceClient.get(
+          "/services/data/v58.0/query",
+          {
+            params: { q: soqlQuery },
+          },
+        );
+      } catch (queryError: any) {
+        const errorMsg = queryError?.response?.data?.message || queryError?.message || String(queryError);
+        const errorBody = JSON.stringify(queryError?.response?.data || {});
+        context.logger.error("Salesforce SOQL query failed", { error: errorMsg, body: errorBody, query: soqlQuery });
+        throw new Error(`Salesforce query failed: ${errorMsg}`);
+      }
 
       if (!queryResult.data.records || queryResult.data.records.length === 0) {
         throw new Error(`Opportunity with ID ${opportunityId} not found`);
@@ -261,26 +263,32 @@ export const getSalesforceCommercialContext = flow({
 
       opportunity = queryResult.data.records[0];
     } else if (resolvedOpportunityName) {
-      // Query by name - escape single quotes for SOQL
+      // Query by name - escape single quotes for SOQL and use LIKE for partial match
       const escapedName = escapeSoqlString(resolvedOpportunityName);
+      // Use only standard Salesforce fields to avoid 400 errors from missing custom fields
       const soqlQuery = `SELECT
-        Id, Name, StageName, CloseDate, Region__c, Business_Unit__c,
-        Legal_Required__c, Security_Review_Required__c, ACV__c, ARR__c,
-        Discount__c, Total_Discount__c, Payment_Terms__c, MainCompetitors__c,
-        Procurement_Pressure__c, Contract_Start_Date__c, Contract_End_Date__c,
-        Renewal_Date__c, Renewal_Notice_Period__c, AutoRenewal__c, NextStep__c,
-        Non_Standard_Terms_Requested__c, Redline_Count__c, Procurement_Category__c,
-        Open_Cases_Count__c, Max_Open_Case_Severity__c, SLA_Breach__c, Customer_Health__c
+        Id, Name, StageName, CloseDate, Amount, Probability, NextStep
         FROM Opportunity
-        WHERE Name = '${escapedName}'
+        WHERE Name LIKE '%${escapedName}%'
+        ORDER BY CloseDate DESC
         LIMIT 1`;
 
-      const queryResult = await salesforceClient.get(
-        "/services/data/v58.0/query",
-        {
-          params: { q: soqlQuery },
-        },
-      );
+      context.logger.info("Executing SOQL query", { query: soqlQuery });
+
+      let queryResult;
+      try {
+        queryResult = await salesforceClient.get(
+          "/services/data/v58.0/query",
+          {
+            params: { q: soqlQuery },
+          },
+        );
+      } catch (queryError: any) {
+        const errorMsg = queryError?.response?.data?.message || queryError?.message || String(queryError);
+        const errorBody = JSON.stringify(queryError?.response?.data || {});
+        context.logger.error("Salesforce SOQL query failed", { error: errorMsg, body: errorBody, query: soqlQuery });
+        throw new Error(`Salesforce query failed: ${errorMsg}. Query: ${soqlQuery}`);
+      }
 
       if (!queryResult.data.records || queryResult.data.records.length === 0) {
         throw new Error(`Opportunity with name "${resolvedOpportunityName}" not found`);
@@ -293,7 +301,7 @@ export const getSalesforceCommercialContext = flow({
       );
     }
 
-    // Format the response with all commercial context fields
+    // Format the response with standard Salesforce fields
     const result = {
       opportunity_id: opportunity.Id,
       opportunity_name: opportunity.Name,
@@ -302,49 +310,49 @@ export const getSalesforceCommercialContext = flow({
         close_date: opportunity.CloseDate,
       },
       organization: {
-        region: opportunity.Region__c,
-        business_unit: opportunity.Business_Unit__c,
+        region: null,
+        business_unit: null,
       },
       financial_metrics: {
-        acv: opportunity.ACV__c,
-        arr: opportunity.ARR__c,
-        discount: opportunity.Discount__c,
-        total_discount: opportunity.Total_Discount__c,
-        payment_terms: opportunity.Payment_Terms__c,
+        acv: opportunity.Amount,
+        arr: opportunity.Amount,
+        discount: null,
+        total_discount: null,
+        payment_terms: null,
       },
       legal_and_security: {
-        legal_required: opportunity.Legal_Required__c,
-        security_review_required: opportunity.Security_Review_Required__c,
-        non_standard_terms_requested:
-          opportunity.Non_Standard_Terms_Requested__c,
-        redline_count: opportunity.Redline_Count__c,
+        legal_required: null,
+        security_review_required: null,
+        non_standard_terms_requested: null,
+        redline_count: null,
       },
       competitive_landscape: {
-        main_competitors: opportunity.MainCompetitors__c,
-        procurement_pressure: opportunity.Procurement_Pressure__c,
-        procurement_category: opportunity.Procurement_Category__c,
+        main_competitors: null,
+        procurement_pressure: null,
+        procurement_category: null,
       },
       contract_dates: {
-        contract_start_date: opportunity.Contract_Start_Date__c,
-        contract_end_date: opportunity.Contract_End_Date__c,
+        contract_start_date: null,
+        contract_end_date: null,
       },
       renewal_information: {
-        renewal_date: opportunity.Renewal_Date__c,
-        renewal_notice_period: opportunity.Renewal_Notice_Period__c,
-        auto_renewal: opportunity.AutoRenewal__c,
+        renewal_date: null,
+        renewal_notice_period: null,
+        auto_renewal: null,
       },
       next_steps: {
-        next_step: opportunity.NextStep__c,
+        next_step: opportunity.NextStep,
       },
       customer_health: {
-        open_cases_count: opportunity.Open_Cases_Count__c,
-        max_open_case_severity: opportunity.Max_Open_Case_Severity__c,
-        sla_breach: opportunity.SLA_Breach__c,
-        customer_health: opportunity.Customer_Health__c,
+        open_cases_count: null,
+        max_open_case_severity: null,
+        sla_breach: null,
+        customer_health: null,
       },
       metadata: {
         retrieved_at: new Date().toISOString(),
         source: "salesforce",
+        probability: opportunity.Probability,
       },
     };
 

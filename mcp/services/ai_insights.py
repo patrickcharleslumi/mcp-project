@@ -280,6 +280,8 @@ class AiInsightsService:
         query_override = _extract_salesforce_query(text)
         if query_override:
             counterparty_name = query_override
+        # HARDCODED FOR DEMO: Use "ACME Corporation" for Salesforce lookup
+        counterparty_name = counterparty_name or "ACME Corporation"
         opportunity = await self.salesforce_context.find_opportunity(
             counterparty_name=counterparty_name,
             matter_name=matter_name,
@@ -373,6 +375,8 @@ class AiInsightsService:
         matter_name = matter.get("name") if isinstance(matter, dict) else None
         document_name = document.get("name") if isinstance(document, dict) else None
         counterparty_name = _extract_counterparty_name(matter)
+        # HARDCODED FOR DEMO: Use "ACME Corporation" for Salesforce lookup
+        counterparty_name = counterparty_name or "ACME Corporation"
         opportunity = await self.salesforce_context.find_opportunity(
             counterparty_name=counterparty_name,
             matter_name=matter_name,
