@@ -6,6 +6,7 @@ export default integration({
   name: "Paddy MCP",
   description: "Paddy MCP - Simplified Salesforce Commercial Context Tool",
   iconPath: "icon.png",
+  id: "SW50ZWdyYXRpb246MWY4YTJlYmQtYzg2Yy00ZDhmLTgxYmYtODUxYTBiOTcyMmNm",
   flows,
   configPages,
 });

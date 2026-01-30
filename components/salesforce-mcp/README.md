@@ -1,249 +1,273 @@
-# Paddy MCP - Salesforce Commercial Context Tool
+# Salesforce MCP Component
 
-This Prismatic integration exposes a Salesforce commercial context tool as an MCP (Model Context Protocol) tool for AI agents. It provides a focused tool for retrieving comprehensive commercial context from Salesforce Opportunity records.
+A **Prismatic Code-Native Integration** that provides MCP-compliant access to Salesforce CRM data.
 
-## What this integration does
+> **Reference Implementation**: This component serves as the template for integrating any external system with Luminance via MCP. The same patterns (authentication, flow structure, response normalization) apply to ERP, communication, and support systems.
 
-This integration provides one MCP tool that AI agents can use:
+---
 
-- **Get Salesforce Commercial Context**: Retrieve comprehensive commercial context from Salesforce Opportunity records including deal stage, financial metrics, contract terms, renewal information, procurement details, and customer health
+## Overview
 
-When an AI agent needs commercial context for a deal, it can:
+This component enables AI agents to query Salesforce for commercial context during contract review. It exposes two MCP flows via webhook endpoints:
 
-1. Discover this tool through MCP
-2. Understand the tool's parameters through JSON schema
-3. Invoke the tool with opportunity ID or name
-4. Receive results synchronously for use in reasoning
+| Flow | Purpose |
+|------|---------|
+| `get-salesforce-commercial-context` | Retrieve comprehensive opportunity and account data |
+| `get-signing-likelihood` | Calculate probability of deal closing |
 
-## Key features
+---
 
-### Agent-compatible flow
+## Architecture
 
-The flow is configured as an agent flow using two key properties in [flows.ts](src/flows.ts):
+```
+┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐
+│   MCP Wrapper   │ ──── │    Prismatic    │ ──── │   Salesforce    │
+│   (FastAPI)     │ HTTP │   (This Code)   │ REST │      CRM        │
+└─────────────────┘      └─────────────────┘      └─────────────────┘
+```
 
-- **`isAgentFlow: true`**: Makes the flow discoverable and callable by AI agents through MCP
-- **`isSynchronous: true`**: Ensures the flow executes synchronously and returns results immediately, so the AI agent can use the response in its reasoning process
+---
 
-### JSON Schema tool definition
+## MCP Flows
 
-The flow includes a JSON schema in the `schemas.invoke` property that describes the tool to the AI agent:
+### 1. Get Salesforce Commercial Context
 
-```typescript
-schemas: {
-  invoke: {
-    $schema: "https://json-schema.org/draft/2020-12/schema",
-    $comment: "Retrieve comprehensive commercial context from Salesforce Opportunity records",
-    title: "get-salesforce-commercial-context",
-    type: "object",
-    properties: {
-      opportunityId: {
-        type: "string",
-        description: "Salesforce Opportunity ID (e.g., 006XXXXXXXXXXXXXXX). Optional if opportunityName provided.",
-      },
-      opportunityName: {
-        type: "string",
-        description: "Opportunity Name to search for. Optional if opportunityId provided.",
-      },
-    },
-  },
+**Endpoint**: Prismatic webhook trigger  
+**Method**: POST
+
+**Input**:
+```json
+{
+  "opportunityId": "006XXXXXXXXXXXXXXX",  // Optional
+  "opportunityName": "ACME Corporation",   // Optional
+  "matterId": "17"                         // Optional - triggers Luminance lookup
 }
 ```
 
-This schema serves as the tool's interface definition:
-- The **`title`** becomes the tool name that AI agents see
-- The **`$comment`** explains the tool's purpose and usage
-- The **`properties`** define the tool's parameters with descriptions
-- The **`description`** fields help the AI agent understand what each parameter does
-
-### Payload validation with Zod
-
-The flow uses [Zod](https://zod.dev/) to validate and parse incoming parameters from the AI agent:
-
-```typescript
-const SalesforceCommercialContextSchema = zod
-  .object({
-    opportunityId: zod.string().optional(),
-    opportunityName: zod.string().optional(),
-  })
-  .refine((data) => data.opportunityId || data.opportunityName, {
-    message: "Either opportunityId or opportunityName must be provided",
-  });
+**Output**:
+```json
+{
+  "opportunity_id": "006fj000008V9luAAC",
+  "opportunity_name": "ACME Corporation – CLM Platform Rollout",
+  "deal_stage": {
+    "stage_name": "Closed Won",
+    "close_date": "2026-08-29",
+    "is_closed": true,
+    "is_won": true,
+    "forecast_category": "Closed"
+  },
+  "account": {
+    "id": "001...",
+    "name": "ACME Corporation",
+    "industry": "Technology",
+    "annual_revenue": 50000000,
+    "number_of_employees": 500,
+    "rating": "Hot"
+  },
+  "financial_metrics": {
+    "acv": 240000,
+    "arr": 240000,
+    "expected_revenue": 240000
+  },
+  "contracts": [
+    {
+      "id": "800...",
+      "contract_number": "00000123",
+      "status": "Activated",
+      "start_date": "2026-01-01",
+      "end_date": "2027-01-01"
+    }
+  ],
+  "customer_health": {
+    "open_cases_count": 2,
+    "max_open_case_severity": "Low",
+    "customer_health": "Green"
+  },
+  "metadata": {
+    "probability": 100,
+    "retrieved_at": "2026-01-30T12:00:00Z"
+  }
+}
 ```
 
-This provides:
-- **Type safety**: Ensures the parameters match expected types
-- **Runtime validation**: Catches invalid data before processing
-- **Clear error messages**: Helps debug issues when AI agents send incorrect parameters
-- **Type inference**: TypeScript automatically infers types from the Zod schema
+### 2. Get Signing Likelihood
 
-## Prerequisites
+**Endpoint**: Prismatic webhook trigger  
+**Method**: POST
 
-- Node.js 18+
-- Prismatic CLI (`npm i -g @prismatic-io/cli`) and access to a Prismatic organization
-- Salesforce org access with appropriate Connected App setup
+**Input**: Same as commercial context
 
-## Installation
+**Output**:
+```json
+{
+  "opportunity_id": "006fj000008V9luAAC",
+  "opportunity_name": "ACME Corporation – CLM Platform Rollout",
+  "signing_likelihood": {
+    "score": 85,
+    "confidence": "high",
+    "assessment": "High likelihood of signing. Deal progressing well.",
+    "salesforce_probability": 100
+  },
+  "positive_factors": [
+    "Deal already closed and won",
+    "Forecast: Committed deal",
+    "Clear next steps defined"
+  ],
+  "risk_factors": [],
+  "recommendations": [
+    "Continue current engagement strategy"
+  ],
+  "deal_context": {
+    "stage": "Closed Won",
+    "close_date": "2026-08-29",
+    "amount": 240000,
+    "account_name": "ACME Corporation"
+  }
+}
+```
+
+---
+
+## Configuration
+
+### Prismatic Config Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `Salesforce Instance URL` | Salesforce org URL | `https://yourorg.my.salesforce.com` |
+| `Salesforce Client ID` | Connected App consumer key | `3MVG9...` |
+| `Salesforce Private Key` | JWT signing key (PEM) | `-----BEGIN RSA PRIVATE KEY-----...` |
+| `Salesforce Username` | Integration user | `integration@yourorg.com` |
+| `Luminance Token URL` | For matter ID resolution | `https://instance.luminance.com/auth/oauth2/token` |
+| `Luminance Client ID` | OAuth client ID | `client_id` |
+| `Luminance Client Secret` | OAuth client secret | `client_secret` |
+| `Luminance Division` | Project/division ID | `123` |
+| `Counterparty Name Tag` | Matter tag key | `counterparty_name` |
+
+### Salesforce Connected App Setup
+
+1. Create Connected App in Salesforce Setup
+2. Enable OAuth, select "Enable for Device Flow"
+3. Enable JWT Bearer Flow:
+   - Check "Use digital signatures"
+   - Upload X509 certificate
+4. Pre-authorize integration user
+5. Note Consumer Key (Client ID)
+
+---
+
+## SOQL Queries
+
+### Opportunity Query
+
+```sql
+SELECT 
+  Id, Name, StageName, CloseDate, Amount, Probability, NextStep, Type,
+  LeadSource, ForecastCategory, ForecastCategoryName, IsClosed, IsWon,
+  ExpectedRevenue, Description, CreatedDate, LastModifiedDate, AccountId,
+  Account.Id, Account.Name, Account.Type, Account.Industry, Account.Website,
+  Account.Phone, Account.BillingCity, Account.BillingState, Account.BillingCountry,
+  Account.AnnualRevenue, Account.NumberOfEmployees, Account.Description,
+  Account.Rating, Account.CreatedDate
+FROM Opportunity 
+WHERE Name LIKE '%{name}%' 
+ORDER BY CloseDate DESC 
+LIMIT 1
+```
+
+### Contract Query
+
+```sql
+SELECT 
+  Id, ContractNumber, Status, StartDate, EndDate, ContractTerm,
+  BillingCity, BillingState, BillingCountry, Description, CreatedDate
+FROM Contract 
+WHERE AccountId = '{accountId}' 
+ORDER BY StartDate DESC 
+LIMIT 5
+```
+
+### Case Query
+
+```sql
+SELECT 
+  Id, CaseNumber, Subject, Status, Priority, Type, CreatedDate
+FROM Case 
+WHERE AccountId = '{accountId}' AND IsClosed = false 
+ORDER BY CreatedDate DESC 
+LIMIT 10
+```
+
+---
+
+## Development
+
+### Prerequisites
+
+- Node.js 20+
+- Prismatic CLI (`npm install -g @prismatic-io/prism`)
+- Access to Prismatic organization
+
+### Local Development
 
 ```bash
 # Install dependencies
 npm install
 
-# Build the integration
+# Build TypeScript
 npm run build
+
+# Run tests
+npm test
 ```
 
-## Configuration
-
-### Salesforce Connection
-
-For the Salesforce commercial context tool, you'll need to configure JWT Bearer authentication with these 4 required fields. The Private Key must be an unencrypted PEM (PKCS#8 preferred); single-line or escaped `\n` keys are normalized automatically.
-
-- **Salesforce Token URL**: OAuth2 token URL (use your org's custom domain URL for best results)
-  - Example: `https://orgfarm-e2bbca81d6-dev-ed.develop.my.salesforce.com/services/oauth2/token`
-  - Default: `https://login.salesforce.com/services/oauth2/token`
-- **Salesforce Consumer Key**: Your Connected App Consumer Key (Client ID)
-- **Salesforce Username**: Salesforce user for API access (must be authorized for the Connected App)
-- **Salesforce Private Key**: Private key for JWT signing (full PEM format including BEGIN/END headers)
-
-**Note**: Ensure your Salesforce Connected App has JWT Bearer flows enabled, a certificate uploaded, and the user has appropriate permissions to access Opportunity records.
-
-### Luminance Connection
-
-For Luminance API access we use OAuth2 client credentials. Configure the **Luminance API Connection** first (preferred), or fill the base URL/client credentials directly.
-
-- **Luminance API Connection**: OAuth2 Client Credentials connection (Token URL, Client ID, Client Secret)
-- **Luminance Base URL**: e.g. `https://localhost:4000`
-- **Luminance Client ID**: OAuth2 client ID
-- **Luminance Client Secret**: OAuth2 client secret
-- **Luminance Division**: Select the Luminance division (dynamic list)
-- **Counterparty Name Tag**: Select the matter tag that stores the counterparty name (dynamic list)
-
-Deprecated fields removed from the wizard; only client credentials are used.
-
-## Testing the integration
-
-### Building and importing
-
-To build and import the integration to Prismatic:
+### Deployment
 
 ```bash
-npm run build
+# Login to Prismatic
+export PRISMATIC_URL=https://app.luminance-production-eu-central-1.prismatic.io
+prism login
+
+# Import integration
 npm run import
+
+# Or publish component (deprecated)
+# prism integrations:import --integrationId <id>
 ```
 
-### Testing with an AI agent in Prismatic
+---
 
-To test the integration with an AI agent:
+## File Structure
 
-1. **Build and import the integration**
-2. **Configure an instance** with your Salesforce credentials
-3. **Deploy the instance** to a customer
-4. **Configure an AI agent** (like Claude or ChatGPT) with MCP access to your Prismatic instance
-5. **Ask the AI agent to use the tool:**
-   - "Get Salesforce commercial context for opportunity 006XXXXXXXXXXXXXXX"
-   - "Get commercial context for opportunity ACME Corporation – Enterprise CLM Implementation"
-
-The AI agent will:
-- Discover the tool through MCP
-- Determine the appropriate parameters based on your request
-- Call the tool with those parameters
-- Receive the results
-- Present them to you in natural language
-
-### Testing manually
-
-You can also test the flow manually by sending a POST request to the flow's webhook URL:
-
-```bash
-curl -X POST https://your-instance-webhook-url \
-  -H "Content-Type: application/json" \
-  -d '{
-    "opportunityId": "006XXXXXXXXXXXXXXX"
-  }'
+```
+salesforce-mcp/
+├── src/
+│   ├── index.ts              # Integration definition
+│   ├── flows.ts              # MCP flow implementations
+│   ├── salesforceClient.ts   # JWT Bearer auth client
+│   └── configPages.ts        # Prismatic config UI definition
+├── package.json
+├── tsconfig.json
+└── README.md                  # This file
 ```
 
-## MCP Tool
+---
 
-### get-salesforce-commercial-context
+## Troubleshooting
 
-Retrieves comprehensive commercial context from Salesforce Opportunity records. Returns deal stage, financial metrics, contract terms, renewal information, procurement details, legal/security requirements, and customer health indicators.
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| `INVALID_SESSION_ID` | Token expired | Re-authenticate; check JWT clock skew |
+| `INVALID_GRANT` | JWT assertion invalid | Verify private key matches certificate |
+| `INSUFFICIENT_ACCESS` | User lacks permissions | Pre-authorize user in Connected App |
+| `No Opportunity found` | Name mismatch | Try partial name; check Salesforce data |
+| `Luminance token failed` | Invalid credentials | Verify client ID/secret |
 
-**Parameters:**
-- `opportunityId` (optional): Salesforce Opportunity ID (e.g., 006XXXXXXXXXXXXXXX). Required if opportunityName not provided.
-- `opportunityName` (optional): Opportunity Name to search for. Required if opportunityId not provided.
+---
 
-**Returns:**
-Comprehensive commercial context including:
-- **Deal Stage**: Stage name and close date
-- **Organization**: Region and business unit
-- **Financial Metrics**: ACV, ARR, discounts, payment terms
-- **Legal and Security**: Legal/security requirements, non-standard terms, redline count
-- **Competitive Landscape**: Main competitors, procurement pressure, procurement category
-- **Contract Dates**: Contract start and end dates
-- **Renewal Information**: Renewal date, notice period, auto-renewal status
-- **Next Steps**: Next step actions
-- **Customer Health**: Open cases count, max case severity, SLA breach status, overall health score
+## Security
 
-**Example Response:**
-```json
-{
-  "opportunity_id": "006XXXXXXXXXXXXXXX",
-  "opportunity_name": "ACME Corporation – Enterprise CLM Implementation",
-  "deal_stage": {
-    "stage_name": "Proposal/Price Quote",
-    "close_date": "2026-05-17"
-  },
-  "financial_metrics": {
-    "acv": 40000,
-    "arr": 38000,
-    "discount": 5,
-    "total_discount": 2000,
-    "payment_terms": "Net 30"
-  },
-  "legal_and_security": {
-    "legal_required": true,
-    "security_review_required": true,
-    "non_standard_terms_requested": false,
-    "redline_count": 0
-  },
-  "customer_health": {
-    "open_cases_count": 0,
-    "max_open_case_severity": "None",
-    "sla_breach": false,
-    "customer_health": "Green"
-  },
-  "metadata": {
-    "retrieved_at": "2026-01-29T10:30:00.000Z",
-    "source": "salesforce"
-  }
-}
-```
-
-## MCP and AI agent integrations
-
-The Model Context Protocol (MCP) is a standardized protocol for connecting AI agents to external tools and data sources. When you mark a Prismatic flow as an agent flow:
-
-1. Prismatic automatically exposes it through MCP
-2. AI agents can discover the tool through the MCP protocol
-3. The JSON schema you provide becomes the tool's interface definition
-4. AI agents can call the tool and receive responses synchronously
-
-This approach allows you to:
-- **Extend AI agent capabilities**: Give agents access to Salesforce commercial data
-- **Maintain control**: Keep authentication and authorization logic in your integration
-- **Reuse integrations**: Use existing Prismatic integrations as AI agent tools
-- **Update independently**: Modify tool behavior without changing the AI agent configuration
-
-For more information about building AI agent integrations in Prismatic, see the [Agent Flows documentation](https://prismatic.io/docs/ai/flow-invocation-schema/).
-
-## Development
-
-- Install deps: `npm install`
-- Build: `npm run build`
-- Import to Prismatic: `npm run import` or `prism integrations:import`
-
-Source code lives under `src/`. The compiled artifact is emitted to `dist/` with `webpack`.
-
-## License
-
-Internal use only.
+- Private key stored securely in Prismatic credential store
+- JWT tokens have 5-minute expiry
+- Luminance OAuth tokens refreshed automatically
+- No credentials logged or exposed in responses

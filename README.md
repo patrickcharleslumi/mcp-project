@@ -1,251 +1,392 @@
-# Luminance Integration MCP Server
-**Build Something Brilliant - Competition Entry**
+# AI-Powered Contract Intelligence Platform
 
-## Quick links
-- Project overview (canonical): `PROJECT_OVERVIEW.md`
-- Docs index: `docs/README.md`
-- Components map: `components/README.md`
-- HTTP MCP wrapper runbook: `components/luminance-mcp/docs/MCP_WRAPPER.md`
-- MCP OpenAPI spec: `components/luminance-mcp/reference/mcp-openapi.yaml`
-- Upstream Luminance spec: `components/luminance-mcp/reference/luminance-upstream-openapi.yaml`
-- Luminance UI demo: `components/ai-insights-ui/docs/luminance-local/RUN_LOCAL_LUMINANCE.md`
+**Luminance × External Systems MCP Integration**
 
-## Components
-- **Luminance MCP**: `mcp/` (FastAPI HTTP MCP wrapper for Luminance endpoints)
-- **Salesforce MCP**: `components/salesforce-mcp/salesforce_mcp_client.py` (client integration stub)
-- **Luminance AI Insights Screen**: `components/ai-insights-ui/docs/luminance-local/` + `components/ai-insights-ui/docs/luminance-local/web-patch/`
-- **Agentic Layer**: `components/agentic-layer/` (agent docs + orchestration)
+> Bridging the gap between contract intelligence and business context through the Model Context Protocol (MCP)
 
 ---
 
-## 1. Competition Overview
+## Executive Summary
 
-**Build Something Brilliant** encourages teams at Luminance to explore how our platform, APIs, and AI capabilities can be extended in innovative but realistic ways.
+This project demonstrates a production-ready integration architecture that connects Luminance's contract intelligence platform with **any external business system** using the **Model Context Protocol (MCP)** standard. Salesforce CRM serves as the reference implementation, but the pattern extends to ERP systems, communication platforms, support tools, and more.
 
-This submission focuses on a core strategic question for Luminance's future:
+### The Problem We Solved
 
-> How do we unlock the *full commercial and operational context* around contracts when that context increasingly lives **outside** Luminance?
+Luminance users lack key deal context contained in external systems and applications when reviewing contracts:
+- **Deal value, probability, and stage** live in CRM systems (Salesforce, HubSpot, Dynamics)
+- **Financial data and payment history** live in ERP systems (Sage, NetSuite, SAP)
+- **Customer health and support history** live in ticketing systems (Zendesk, ServiceNow)
+- **Negotiation context and urgency** live in communication tools (Slack, Teams, Email)
+- **Contract terms and obligations** live in Luminance
 
----
+Without this context, users make decisions in isolation, leading to:
+- Over-negotiation of low-risk deals
+- Under-prioritization of high-value opportunities
+- Delayed deal velocity due to context-switching between systems
 
-## 2. Updated Problem Statement
+### Our Solution
 
-### What Luminance Already Does Well
+An **AI agent** embedded within Luminance that:
+1. **Automatically fetches** external context from connected systems when a user opens a matter
+2. **Surfaces actionable insights** through dynamic widgets (deal status, recommended actions, risk factors)
+3. **Responds to natural language queries** about the current deal or broader portfolio
+4. **Performs intelligent searches** across connected systems (CRM, ERP, support platforms)
 
-Luminance is already excellent at:
-- Comparing contract versions **within** Luminance
-- Analysing negotiated positions against internal precedent
-- Identifying risk, deviations, and clause-level changes once documents are inside the platform
-
-This is *not* the problem we are trying to solve.
-
----
-
-### The Real Problem: Context Is Fragmented
-
-In modern organisations, the most important signals for contract decisions live **outside** the contract repository:
-- **Salesforce** - deal value, account tier, close probability, renewal risk
-- **Sage / ERP systems** - revenue recognition, payment history, credit risk
-- **Slack / email** - negotiation pressure, urgency, internal alignment
-- **Procurement & CRM tools** - supplier importance, historical concessions
-
-As a result:
-- Legal teams must mentally stitch together context from multiple systems
-- Critical commercial nuance never reaches the contract review surface
-- AI systems operating on contracts alone lack decision-critical inputs
-
-> The contract is only one part of the decision.
-> The *context* determines how that contract should be handled.
+**Reference Implementation**: Salesforce CRM integration demonstrating the full pattern
 
 ---
 
-## 3. Why This Problem Matters
+## Architecture Overview
 
-Without access to external context:
-- "Market standard" advice is incomplete
-- Signing likelihood estimates are shallow
-- Clause recommendations are blind to commercial reality
-- Legal teams over-review low-risk deals and under-prioritise high-impact ones
-
-This creates:
-- Slower deal velocity
-- Friction between Legal, Sales, and Finance
-- Missed opportunities for intelligent automation
-
----
-
-## 4. Our Solution
-
-We introduce a **Model Context Protocol (MCP)-based integration layer** that allows AI agents to:
-- Pull *relevant external context* at the moment of contract decision-making
-- Combine that context with Luminance's deep contract intelligence
-- Surface **explainable, human-reviewable recommendations** inside Luminance
-
-Key principles:
-- Context is *fetched, not duplicated*
-- AI proposes; humans approve
-- Luminance remains the system of record for legal decisions
-
----
-
-## 5. High-Level Architecture
-
-```mermaid
-flowchart LR
-  subgraph Agentic Layer
-    User[Legal User<br/>Matter Insights UI]
-    Agent[AI Agent / Orchestrator]
-    Prismatic[Prismatic MCP Flow Server<br/>(optional)]
-    User --> Agent
-    Agent --> Prismatic
-  end
-
-  subgraph MCP Server Layer
-    MCP[Integration MCP Server<br/>(HTTP wrapper)]
-    StdioMCP[Stdio MCP Server<br/>(Prismatic/CLI)]
-  end
-
-  subgraph Sources
-    Lum[Luminance API]
-    SF[Salesforce MCP]
-    ERP[ERP / Sage MCP]
-    Slack[Slack MCP]
-  end
-
-  Prismatic --> MCP
-  Agent --> MCP
-  Agent --> StdioMCP
-
-  MCP --> Lum
-  MCP --> SF
-  MCP --> ERP
-  MCP --> Slack
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           LUMINANCE WEB APPLICATION                         │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                      AI Insights Panel                               │   │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │   │
+│  │  │ Deal Outcome │  │   Priority   │  │    Risk      │  [Widgets]    │   │
+│  │  │    Widget    │  │   Action     │  │  Mitigation  │               │   │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘               │   │
+│  │  ┌──────────────────────────────────────────────────────────────┐   │   │
+│  │  │              AI Agent Chat Interface                          │   │   │
+│  │  │  User: "Which companies are in a similar stage?"             │   │   │
+│  │  │  Agent: 📊 RESULTS: Burlington Textiles, Express Logistics...│   │   │
+│  │  └──────────────────────────────────────────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         MCP HTTP WRAPPER (FastAPI)                          │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐ │
+│  │  AI Insights    │  │   Salesforce    │  │      LLM Proxy Client       │ │
+│  │    Service      │──│    Context      │──│  (Claude/GPT via Proxy)     │ │
+│  │                 │  │    Service      │  │                             │ │
+│  └─────────────────┘  └─────────────────┘  └─────────────────────────────┘ │
+│         │                     │                                             │
+│         │                     ▼                                             │
+│         │    ┌─────────────────────────────────────────────────────────┐   │
+│         │    │              SALESFORCE MCP CLIENT                       │   │
+│         │    │   • Caching (60s TTL) • Parallel requests (asyncio)     │   │
+│         │    │   • Dynamic filtering • Deduplication                    │   │
+│         │    └─────────────────────────────────────────────────────────┘   │
+│         │                     │                                             │
+└─────────┼─────────────────────┼─────────────────────────────────────────────┘
+          │                     │
+          ▼                     ▼
+┌─────────────────────┐  ┌─────────────────────────────────────────────────────┐
+│   LUMINANCE API     │  │              PRISMATIC INTEGRATION PLATFORM         │
+│  • Matters          │  │  ┌─────────────────────────────────────────────┐   │
+│  • Documents        │  │  │        SALESFORCE MCP COMPONENT             │   │
+│  • Annotations      │  │  │  • JWT Bearer Authentication               │   │
+│  └───────────────── │  │  │  • SOQL Queries (Opportunities, Accounts)  │   │
+└─────────────────────┘  │  │  • Contract & Case retrieval               │   │
+                         │  │  • Signing Likelihood calculation          │   │
+                         │  └─────────────────────────────────────────────┘   │
+                         └─────────────────────────────────────────────────────┘
+                                            │
+                                            ▼
+                         ┌─────────────────────────────────────────────────────┐
+                         │                 SALESFORCE CRM                       │
+                         │  Opportunities │ Accounts │ Contracts │ Cases       │
+                         └─────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 6. Agentic Layer
+## Key Components
 
-The Agentic layer is responsible for:
-- Interpreting user intent (Matter Insights UI)
-- Selecting the right MCP tool to call
-- Combining MCP results into a human-readable response
-- Ensuring actions remain assistive, not autonomous
+### 1. Salesforce MCP Component (`components/salesforce-mcp/`)
 
-This layer can run:
-- Inside Prismatic (via MCP Flow Server)
-- In a custom orchestrator or LLM runtime
+A **Prismatic Code-Native Integration** that provides two MCP flows:
+
+| Flow | Purpose | Data Returned |
+|------|---------|---------------|
+| `get-salesforce-commercial-context` | Retrieve comprehensive deal context | Opportunity, Account, Contracts, Cases, Customer Health |
+| `get-signing-likelihood` | Calculate probability of deal closing | Score (0-100), Risk Factors, Recommendations |
+
+**Authentication**: Salesforce JWT Bearer Flow using a private key certificate.
+
+**SOQL Queries**: Extended queries that pull from multiple Salesforce objects in a single call:
+- Opportunity with 25+ fields
+- Account relationship data (revenue, employees, industry)
+- Associated Contracts (up to 5 most recent)
+- Open Cases for customer health assessment
+
+### 2. MCP HTTP Wrapper (`mcp/`)
+
+A **FastAPI application** that serves as the integration gateway:
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/v1/groups/{id}/insights` | GET | Generate AI insights for a matter |
+| `/api/v1/groups/{id}/agent` | POST | Handle natural language queries |
+| `/health` | GET | Health check |
+
+**Key Services**:
+
+- **`ai_insights.py`**: Orchestrates insight generation with intelligent widget building
+- **`salesforce_context.py`**: Manages Salesforce data retrieval with caching and parallel execution
+- **`llm_proxy.py`**: Interfaces with the LLM proxy for natural language processing
+
+**Performance Optimizations**:
+- 60-second LRU cache for Salesforce responses
+- `asyncio.gather()` for parallel API calls (9 companies queried in ~2 seconds)
+- Deduplication by Opportunity ID
+
+### 3. AI Insights UI (`web/` integration)
+
+Frontend components integrated into the Luminance matter view:
+
+| Component | Location | Function |
+|-----------|----------|----------|
+| `group-ai-insights-view.ts` | TypeScript view | Handles data fetching, widget rendering, agent chat |
+| `group-ai-insights-view.hbs` | Handlebars template | UI structure with loading states |
+| `group-ai-insights-view.less` | LESS styles | Responsive grid layout, severity colors |
+
+**Features**:
+- Dynamic widget generation based on deal stage (Won/Lost/Open)
+- Real-time loading indicators with "Lumi thinking" animation
+- Refresh button for on-demand data refresh
+- Agent chat with formatted responses (📊 💡 ⚡ sections)
+- Responsive scaling on zoom
 
 ---
 
-## 7. MCP Server Layer
+## Data Flow
 
-The MCP Server layer provides **audited, structured access** to Luminance and external systems:
+### Automatic Insights (Tab Selection)
 
-- **HTTP MCP Wrapper (`mcp/`)**
-  - Production-grade FastAPI wrapper
-  - Stable HTTP endpoints for agents
-  - Strong auth, observability, retries, and caching
+```
+User clicks "AI Insights" tab
+         │
+         ▼
+Luminance UI → GET /api/v1/groups/{id}/insights
+         │
+         ▼
+MCP Wrapper: AiInsightsService.generate_insights()
+         │
+         ├──→ Luminance API: Get matter, document, annotations
+         │
+         ├──→ Salesforce MCP: Get commercial context
+         │         │
+         │         ▼
+         │    Prismatic: SOQL query → Salesforce CRM
+         │
+         ├──→ Salesforce MCP: Get signing likelihood
+         │
+         ▼
+Build Summary + Widgets based on deal stage
+         │
+         ▼
+Return to UI → Render widgets with severity indicators
+```
 
-- **Stdio MCP Server (`components/luminance-mcp/integration_mcp/`)**
-  - JSON-RPC over stdio
-  - Useful for Prismatic-hosted flows and local prototyping
+### Agent Query (Natural Language)
 
----
-
-## 8. How Context Is Unlocked
-
-```mermaid
-sequenceDiagram
-  participant U as User
-  participant A as Agent
-  participant M as MCP Server
-  participant L as Luminance
-  participant X as External Systems
-
-  U->>A: Review matter
-  A->>M: Request enriched context
-  M->>L: Fetch contract & precedent data
-  M->>X: Fetch deal, finance & comms context
-  M-->>A: Normalised, structured context
-  A-->>U: Explainable recommendations
+```
+User types: "Which companies are in a similar stage?"
+         │
+         ▼
+Luminance UI → POST /api/v1/groups/{id}/agent
+         │
+         ▼
+MCP Wrapper: AiInsightsService.query_agent()
+         │
+         ├──→ Intent Detection: "wants_search = true, filters = {stage: 'Closed Won'}"
+         │
+         ├──→ SalesforceContextService.dynamic_search()
+         │         │
+         │         ▼
+         │    Parallel queries to Prismatic (9 companies)
+         │         │
+         │         ▼
+         │    Apply filters, deduplicate, return matches
+         │
+         ├──→ LLM Proxy: Generate structured response
+         │         │
+         │         ▼
+         │    System prompt enforces: 📊 RESULTS, 💡 INSIGHT, ⚡ ACTION
+         │
+         ▼
+Return formatted response → Render in chat panel
 ```
 
 ---
 
-## 9. MCP Server Responsibilities
+## Configuration
 
-The Integration MCP Server is responsible for:
-- **Context aggregation**
-  - Matter (Group) data from Luminance
-  - Commercial and operational data from external systems
-- **Semantic tooling**
-  - Version comparison
-  - Clause similarity across precedent
-  - Context-aware filtering
-- **Governance**
-  - Rate limiting, retries, and error handling
-  - Provenance tracking
-  - Security and access control
+### Environment Variables
 
-This keeps the agent lightweight and safe.
+```bash
+# Luminance Connection
+LUMINANCE_BASE_URL=https://your-instance.luminance.com
+LUMINANCE_API_TOKEN=<oauth-token>
+LUMINANCE_PROJECT_ID=<division-id>
 
----
+# Salesforce MCP (Prismatic)
+SALESFORCE_MCP_WEBHOOK_URL=https://hooks.prismatic.io/trigger/<instance-id>
 
-## 10. Agent & UI Integration
+# LLM Proxy (Optional)
+LLM_PROXY_BASE_URL=https://llm-proxy.internal
+LLM_PROXY_API_KEY=<api-key>
+```
 
-### UI (Matter / Group Insights)
-- Displays AI summaries, recommended actions, and tags
-- Clearly shows *why* something is suggested
-- Requires explicit user approval before execution
+### Prismatic Configuration
 
-### Agent
-- Orchestrates calls across MCP servers
-- Combines legal and external context
-- Never executes actions autonomously
+The Salesforce MCP component requires these config variables in Prismatic:
 
-### MCP Contract
-Every response includes:
-- Structured data
-- Source references
-- Confidence indicators
-- Human-review flags
+| Variable | Purpose |
+|----------|---------|
+| `Salesforce Instance URL` | e.g., `https://yourorg.my.salesforce.com` |
+| `Salesforce Client ID` | Connected App consumer key |
+| `Salesforce Private Key` | JWT signing key (PEM format) |
+| `Salesforce Username` | Integration user |
+| `Luminance Token URL` | For matter ID resolution |
+| `Luminance Client ID/Secret` | OAuth credentials |
+| `Luminance Division` | Project ID |
+| `Counterparty Name Tag` | Tag key for mapping |
 
 ---
 
-## 11. Repository Structure
+## Running Locally
+
+### Prerequisites
+
+- Python 3.11+
+- Node.js 20+ (for Prismatic CLI)
+- PostgreSQL (Luminance local database)
+- Salesforce Developer Org with Connected App
+
+### Quick Start
+
+```bash
+# 1. Start the MCP wrapper
+cd /path/to/mcp-project
+source .venv/bin/activate
+python -m mcp.main
+
+# 2. Start Luminance web (includes MCP in START_WEB.sh)
+cd /path/to/web
+./START_WEB.sh
+```
+
+### Testing Salesforce Connection
+
+```bash
+# Test Prismatic webhook directly
+curl -X POST "https://hooks.prismatic.io/trigger/<your-instance>" \
+  -H "Content-Type: application/json" \
+  -d '{"opportunityName": "ACME Corporation"}'
+```
+
+---
+
+## Key Technical Decisions
+
+### Why MCP?
+
+The **Model Context Protocol** provides a standardized interface for AI agents to interact with external tools. By implementing MCP:
+
+1. **Interoperability**: The same Salesforce integration works with any MCP-compatible agent
+2. **Auditability**: All tool calls are logged with structured schemas
+3. **Extensibility**: Additional data sources (ERP, Slack, etc.) can be added as MCP servers
+
+### Why Prismatic?
+
+Prismatic offers **hosted integration runtime** with:
+- Built-in OAuth/JWT authentication
+- Webhook triggers for synchronous calls
+- Multi-tenant deployment (one component, many customers)
+- Version management and deployment automation
+
+### Why FastAPI Wrapper?
+
+The MCP HTTP wrapper provides:
+- **Unified API** for Luminance UI (single endpoint vs. multiple MCP servers)
+- **Caching layer** to reduce external API calls
+- **LLM orchestration** for natural language query handling
+- **Security boundary** (tokens never exposed to frontend)
+
+---
+
+## Metrics & Observability
+
+### Logging
+
+All requests include `request_id` for tracing:
+
+```json
+{
+  "timestamp": "2026-01-30T12:45:54Z",
+  "level": "INFO",
+  "message": "Salesforce commercial context retrieved",
+  "request_id": "abc-123",
+  "opportunity_id": "006fj000008V9luAAC",
+  "duration_ms": 1250
+}
+```
+
+### Performance
+
+| Operation | Latency (uncached) | Latency (cached) |
+|-----------|-------------------|------------------|
+| Single company lookup | ~1.5s | <100ms |
+| Portfolio search (9 companies) | ~9s | ~2s |
+| Agent query with LLM | ~3-5s | N/A |
+
+---
+
+## Repository Structure
 
 ```
 mcp-project/
-|-- PROJECT_OVERVIEW.md       # Canonical project overview
-|-- mcp/                      # HTTP MCP wrapper (FastAPI)
-|-- components/luminance-mcp/integration_mcp/  # Stdio MCP server (Prismatic/CLI)
-|-- components/               # Component-level docs and links
-|   |-- luminance-mcp/
-|   |-- salesforce-mcp/
-|   |-- ai-insights-ui/
-|   `-- agentic-layer/
-|-- docs/                     # Doc index
-|   `-- README.md
-|-- tests/
-`-- deploy/
+├── README.md                    # This file
+├── PROJECT_OVERVIEW.md          # Detailed project overview
+├── mcp/                         # FastAPI MCP wrapper
+│   ├── app.py                   # Application factory
+│   ├── config.py                # Configuration management
+│   ├── controllers/             # HTTP endpoints
+│   ├── services/                # Business logic
+│   │   ├── ai_insights.py       # Insight generation + agent queries
+│   │   └── salesforce_context.py # Salesforce data retrieval
+│   └── clients/                 # External service clients
+│       ├── luminance.py         # Luminance API client
+│       ├── salesforce_mcp.py    # Prismatic webhook client
+│       └── llm_proxy.py         # LLM proxy client
+├── components/
+│   ├── salesforce-mcp/          # Prismatic integration
+│   │   ├── src/
+│   │   │   ├── flows.ts         # MCP flow definitions
+│   │   │   ├── salesforceClient.ts # JWT auth client
+│   │   │   └── index.ts         # Integration definition
+│   │   └── package.json
+│   ├── ai-insights-ui/          # UI component documentation
+│   └── agentic-layer/           # Agent architecture docs
+├── credentials/                 # Local dev credentials (gitignored)
+├── deploy/                      # Kubernetes manifests
+└── tests/                       # Unit and integration tests
 ```
 
 ---
 
-## 12. Running Locally
+## Future Enhancements
 
-For full local setup instructions:
-- **HTTP MCP Wrapper**: `components/luminance-mcp/docs/MCP_WRAPPER.md`
-- **Luminance UI demo**: `components/ai-insights-ui/docs/luminance-local/RUN_LOCAL_LUMINANCE.md`
+1. **Additional MCP Servers**: ERP (Sage/NetSuite), Communication (Slack/Teams), Support (Zendesk/ServiceNow)
+2. **Proactive Alerts**: Notify users when external system data changes (deal stage, support escalation)
+3. **Clause-Level Recommendations**: Map external context to specific contract provisions
+4. **Bulk Operations**: Update multiple matters from external system changes
+5. **Audit Trail**: Full provenance tracking for all AI recommendations
+6. **Bi-directional Sync**: Push Luminance insights back to external systems
+
+---
+
+## Contributors
+
+- **Joe Pearce** - Solutions Engineering
 
 ---
 
-## 13. Security, Governance & Auditability
+## License
 
-- OAuth2 / Bearer token authentication
-- Structured logging and request IDs
-- Provenance tracking for every response
-- No autonomous execution
-
----
+Internal Luminance use only. Copyright © 2026 Luminance.

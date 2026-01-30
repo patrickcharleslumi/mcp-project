@@ -649,27 +649,35 @@ class AiInsightsService:
         elif search_type == "dynamic":
             search_context = "\n\nSALESFORCE SEARCH: No matching opportunities found with the specified criteria.\n"
 
+        # Build context-aware system prompt
+        current_stage = opportunity.stage_name if opportunity else "Unknown"
+        current_health = opportunity.customer_health if opportunity else "Unknown"
+        current_region = opportunity.region if opportunity else None
+        current_acv = opportunity.acv if opportunity else None
+        current_close = opportunity.close_date if opportunity else None
+        
+        acv_context = f"${current_acv:,.0f}" if current_acv else "Not specified"
+        
         system_prompt = (
-            "You are Lumi, an AI agent connected to Salesforce via MCP (Model Context Protocol).\n\n"
-            "CAPABILITIES:\n"
-            "- You CAN search and query Salesforce data dynamically\n"
-            "- You CAN filter by stage, region, health, probability, and more\n"
-            "- You CAN compare opportunities and provide insights\n"
-            "- You CAN access contract provisions, financial metrics, and account details\n\n"
-            "RESPONSE RULES:\n"
-            "1. Be CONCISE - 2-3 sentences max\n"
-            "2. Use ACTUAL DATA from search results - cite specific companies and numbers\n"
-            "3. Be ACTIONABLE - give specific next steps\n"
-            "4. Plain text only - no markdown or bullet points\n"
-            "5. If search returned results, LIST THEM with key details\n"
-            "6. If no results, clearly state 'I searched Salesforce and found no matches for [criteria]'\n\n"
-            "CURRENT MATTER:\n"
-            f"- Opportunity: {opportunity.opportunity_name if opportunity else 'Unknown'}\n"
-            f"- Stage: {opportunity.stage_name if opportunity else 'Unknown'}\n"
-            f"- Close Date: {opportunity.close_date if opportunity else 'Unknown'}\n"
-            f"- Health: {opportunity.customer_health if opportunity else 'Unknown'}"
+            "You are Lumi, a sales intelligence AI. Provide CLEAN, STRUCTURED responses.\n\n"
+            "RESPONSE FORMAT (use these exact section headers with emojis):\n\n"
+            "📊 RESULTS\n"
+            "[If listing companies, use this format - one per line]\n"
+            "• Company Name — Stage, Key Metric (e.g. ACV $X or Probability X%)\n\n"
+            "💡 INSIGHT\n"
+            "[2-3 sentences of analysis. Be specific with numbers and comparisons.]\n\n"
+            "⚡ ACTION\n"
+            "[One clear, specific action starting with a verb.]\n\n"
+            "RULES:\n"
+            "1. ALWAYS use the three sections above (📊 💡 ⚡)\n"
+            "2. Keep total response under 120 words\n"
+            "3. Be PRESCRIPTIVE - 'Prioritize X' not 'consider X'\n"
+            "4. Use actual data - cite ACVs, probabilities, dates\n"
+            "5. If no results, say 'No matching deals found' in RESULTS section\n\n"
+            f"CURRENT DEAL:\n"
+            f"{opportunity.opportunity_name if opportunity else 'Unknown'} — {current_stage}, Health: {current_health}, ACV: {acv_context}"
             f"{search_context}\n\n"
-            "Respond naturally as an intelligent agent with full Salesforce access."
+            "Deliver conclusions like an expert advisor."
         )
 
         user_prompt = {
@@ -705,16 +713,34 @@ class AiInsightsService:
 
         summary_payload = _build_summary_from_salesforce(opportunity, matter_name, document_name)
         
-        # If LLM proxy is disabled, return Salesforce context as a structured response
+        # If LLM proxy is disabled, build a smart response from Salesforce data
         if self.llm_proxy is None:
             sf_context = opportunity.__dict__ if opportunity else {}
-            fallback_message = (
-                f"LLM proxy is not configured. Here is the Salesforce context for this matter:\n\n"
-                f"Opportunity: {sf_context.get('opportunity_name', 'N/A')}\n"
-                f"Stage: {sf_context.get('stage_name', 'N/A')}\n"
-                f"Close Date: {sf_context.get('close_date', 'N/A')}\n"
-                f"ARR: ${sf_context.get('arr', 0):,.0f}" if sf_context.get('arr') else "ARR: N/A"
-            )
+            
+            # Build response based on search results or current opportunity
+            if search_results:
+                # User asked to search - show results
+                result_lines = [f"I found {len(search_results)} companies in your Salesforce:\n"]
+                for i, opp in enumerate(search_results[:7], 1):
+                    opp_name = opp.get('opportunity_name', 'Unknown')
+                    stage = opp.get('stage', 'N/A')
+                    health = opp.get('customer_health', 'N/A')
+                    close_date = opp.get('close_date', 'N/A')
+                    acv = opp.get('acv')
+                    acv_str = f", ACV: ${acv:,.0f}" if acv else ""
+                    result_lines.append(f"{i}. {opp_name}: {stage}, Health: {health}, Close: {close_date}{acv_str}")
+                fallback_message = "\n".join(result_lines)
+            else:
+                # Show current opportunity context
+                arr_str = f"${sf_context.get('arr'):,.0f}" if sf_context.get('arr') else "N/A"
+                acv_str = f"${sf_context.get('acv'):,.0f}" if sf_context.get('acv') else "N/A"
+                fallback_message = (
+                    f"Current matter: {sf_context.get('opportunity_name', 'N/A')}\n"
+                    f"Stage: {sf_context.get('stage_name', 'N/A')}\n"
+                    f"Close Date: {sf_context.get('close_date', 'N/A')}\n"
+                    f"Health: {sf_context.get('customer_health', 'N/A')}\n"
+                    f"ACV: {acv_str}, ARR: {arr_str}"
+                )
             return {
                 "message": fallback_message,
                 "insights_payload": {
@@ -742,10 +768,23 @@ class AiInsightsService:
         content = response.get("choices", [{}])[0].get("message", {}).get("content", "")
         if not isinstance(content, str) or not content.strip():
             raise UpstreamError("LLM proxy returned empty response", hint="Check model configuration.")
+        
+        # Format response with proper line breaks for clean display
+        formatted_content = content.strip()
+        # Ensure line breaks before section headers
+        for header in ["📊 RESULTS", "💡 INSIGHT", "⚡ ACTION"]:
+            formatted_content = formatted_content.replace(header, f"\n\n{header}\n")
+        # Ensure bullet points are on new lines
+        formatted_content = formatted_content.replace("• ", "\n• ")
+        # Clean up any excessive newlines
+        while "\n\n\n" in formatted_content:
+            formatted_content = formatted_content.replace("\n\n\n", "\n\n")
+        formatted_content = formatted_content.strip()
+        
         self._append_memory(group_id, "user", text)
-        self._append_memory(group_id, "assistant", content.strip())
+        self._append_memory(group_id, "assistant", formatted_content)
         return {
-            "message": content.strip(),
+            "message": formatted_content,
             "insights_payload": {
                 "summary": summary_payload,
                 "recommendations": [],
