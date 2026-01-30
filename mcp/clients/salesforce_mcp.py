@@ -74,11 +74,23 @@ class SalesforceMcpClient:
                 return payload_data
         return None
 
-    async def estimate_signing_likelihood(self, scenarios: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        if not self.client or not scenarios:
-            return []
+    async def get_signing_likelihood(
+        self,
+        query: str,
+        matter_id: Optional[int] = None,
+    ) -> Optional[dict[str, Any]]:
+        """Get signing likelihood estimate for an opportunity."""
+        if not self.client or not query.strip():
+            return None
 
-        payload = {"scenarios": scenarios}
+        cleaned = query.strip()
+        if re.fullmatch(r"006[0-9A-Za-z]{12,15}", cleaned):
+            payload = {"opportunityId": cleaned}
+        else:
+            payload = {"opportunityName": cleaned}
+        if matter_id is not None:
+            payload["matterId"] = matter_id
+
         try:
             response = await self.client.post(config.salesforce_mcp_signing_likelihood_path, json=payload)
             response.raise_for_status()
@@ -90,13 +102,13 @@ class SalesforceMcpClient:
                 status=exc.response.status_code if exc.response else None,
                 response=response_text[:1000],
             )
-            return []
+            return None
         except Exception as exc:
             logger.warning("Salesforce MCP signing likelihood request failed", error=str(exc))
-            return []
+            return None
 
         if isinstance(data, dict):
-            results = data.get("data")
-            if isinstance(results, list):
-                return [result for result in results if isinstance(result, dict)]
-        return []
+            payload_data = data.get("data")
+            if isinstance(payload_data, dict):
+                return payload_data
+        return None

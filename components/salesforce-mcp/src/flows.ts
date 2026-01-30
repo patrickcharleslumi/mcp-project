@@ -4,6 +4,9 @@ import { createSalesforceClient } from "./salesforceClient";
 
 type JsonRecord = Record<string, unknown>;
 
+const getConfigString = (context: any, key: string): string =>
+  util.types.toString(context.configVars[key] ?? "");
+
 const getLuminanceAuth = (context: any): { baseUrl: string; clientId: string; clientSecret: string } => {
   const tokenUrl = util.types.toString(context.configVars["Luminance Token URL"] ?? "");
   const baseUrl = tokenUrl.replace("/auth/oauth2/token", "");
@@ -225,6 +228,17 @@ export const getSalesforceCommercialContext = flow({
       return str.replace(/'/g, "''");
     };
 
+    // Extended Opportunity query with Account relationship
+    const opportunityFields = `
+      Id, Name, StageName, CloseDate, Amount, Probability, NextStep, Type,
+      LeadSource, ForecastCategory, ForecastCategoryName, IsClosed, IsWon,
+      ExpectedRevenue, TotalOpportunityQuantity, Description, CreatedDate, LastModifiedDate,
+      AccountId, Account.Id, Account.Name, Account.Type, Account.Industry, Account.Website,
+      Account.Phone, Account.BillingCity, Account.BillingState, Account.BillingCountry,
+      Account.AnnualRevenue, Account.NumberOfEmployees, Account.Description,
+      Account.Rating, Account.CreatedDate
+    `.trim().replace(/\s+/g, ' ');
+
     if (opportunityId) {
       // Validate Salesforce ID format (15 or 18 characters, alphanumeric)
       if (!/^[a-zA-Z0-9]{15,18}$/.test(opportunityId)) {
@@ -233,12 +247,7 @@ export const getSalesforceCommercialContext = flow({
         );
       }
 
-      // Query by ID - use only standard Salesforce fields
-      const soqlQuery = `SELECT
-        Id, Name, StageName, CloseDate, Amount, Probability, NextStep
-        FROM Opportunity
-        WHERE Id = '${opportunityId}'
-        LIMIT 1`;
+      const soqlQuery = `SELECT ${opportunityFields} FROM Opportunity WHERE Id = '${opportunityId}' LIMIT 1`;
 
       context.logger.info("Executing SOQL query by ID", { query: soqlQuery });
 
@@ -263,15 +272,8 @@ export const getSalesforceCommercialContext = flow({
 
       opportunity = queryResult.data.records[0];
     } else if (resolvedOpportunityName) {
-      // Query by name - escape single quotes for SOQL and use LIKE for partial match
       const escapedName = escapeSoqlString(resolvedOpportunityName);
-      // Use only standard Salesforce fields to avoid 400 errors from missing custom fields
-      const soqlQuery = `SELECT
-        Id, Name, StageName, CloseDate, Amount, Probability, NextStep
-        FROM Opportunity
-        WHERE Name LIKE '%${escapedName}%'
-        ORDER BY CloseDate DESC
-        LIMIT 1`;
+      const soqlQuery = `SELECT ${opportunityFields} FROM Opportunity WHERE Name LIKE '%${escapedName}%' ORDER BY CloseDate DESC LIMIT 1`;
 
       context.logger.info("Executing SOQL query", { query: soqlQuery });
 
@@ -301,21 +303,95 @@ export const getSalesforceCommercialContext = flow({
       );
     }
 
-    // Format the response with standard Salesforce fields
+    // Query for Contracts associated with the Account
+    let contracts: any[] = [];
+    if (opportunity.AccountId) {
+      const contractFields = `
+        Id, ContractNumber, Status, StartDate, EndDate, ContractTerm,
+        BillingCity, BillingState, BillingCountry, Description, CreatedDate
+      `.trim().replace(/\s+/g, ' ');
+      const contractQuery = `SELECT ${contractFields} FROM Contract WHERE AccountId = '${opportunity.AccountId}' ORDER BY StartDate DESC LIMIT 5`;
+      
+      try {
+        const contractResult = await salesforceClient.get(
+          "/services/data/v58.0/query",
+          { params: { q: contractQuery } },
+        );
+        contracts = contractResult.data.records || [];
+        context.logger.info("Retrieved contracts", { count: contracts.length });
+      } catch (contractError: any) {
+        context.logger.warn("Failed to query contracts", { error: contractError?.message });
+      }
+    }
+
+    // Query for Cases (support tickets) associated with the Account
+    let cases: any[] = [];
+    if (opportunity.AccountId) {
+      const caseQuery = `SELECT Id, CaseNumber, Subject, Status, Priority, Type, CreatedDate FROM Case WHERE AccountId = '${opportunity.AccountId}' AND IsClosed = false ORDER BY CreatedDate DESC LIMIT 10`;
+      
+      try {
+        const caseResult = await salesforceClient.get(
+          "/services/data/v58.0/query",
+          { params: { q: caseQuery } },
+        );
+        cases = caseResult.data.records || [];
+        context.logger.info("Retrieved open cases", { count: cases.length });
+      } catch (caseError: any) {
+        context.logger.warn("Failed to query cases", { error: caseError?.message });
+      }
+    }
+
+    // Extract Account data from the relationship
+    const account = opportunity.Account || {};
+
+    // Determine customer health based on cases
+    let customerHealth = "Green";
+    let maxCaseSeverity = "None";
+    if (cases.length > 0) {
+      const priorities = cases.map((c: any) => c.Priority?.toLowerCase());
+      if (priorities.includes("high") || priorities.includes("critical")) {
+        customerHealth = "Red";
+        maxCaseSeverity = "High";
+      } else if (priorities.includes("medium")) {
+        customerHealth = "Yellow";
+        maxCaseSeverity = "Medium";
+      } else {
+        maxCaseSeverity = "Low";
+      }
+    }
+
+    // Format the response with enriched data
     const result = {
       opportunity_id: opportunity.Id,
       opportunity_name: opportunity.Name,
       deal_stage: {
         stage_name: opportunity.StageName,
         close_date: opportunity.CloseDate,
+        forecast_category: opportunity.ForecastCategoryName || opportunity.ForecastCategory,
+        is_closed: opportunity.IsClosed,
+        is_won: opportunity.IsWon,
       },
       organization: {
-        region: null,
-        business_unit: null,
+        region: account.BillingCountry || account.BillingState,
+        business_unit: account.Industry,
+      },
+      account: {
+        id: account.Id,
+        name: account.Name,
+        type: account.Type,
+        industry: account.Industry,
+        website: account.Website,
+        phone: account.Phone,
+        billing_location: [account.BillingCity, account.BillingState, account.BillingCountry].filter(Boolean).join(", "),
+        annual_revenue: account.AnnualRevenue,
+        number_of_employees: account.NumberOfEmployees,
+        rating: account.Rating,
+        description: account.Description,
       },
       financial_metrics: {
         acv: opportunity.Amount,
         arr: opportunity.Amount,
+        expected_revenue: opportunity.ExpectedRevenue,
         discount: null,
         total_discount: null,
         payment_terms: null,
@@ -330,29 +406,53 @@ export const getSalesforceCommercialContext = flow({
         main_competitors: null,
         procurement_pressure: null,
         procurement_category: null,
+        lead_source: opportunity.LeadSource,
+        opportunity_type: opportunity.Type,
       },
       contract_dates: {
-        contract_start_date: null,
-        contract_end_date: null,
+        contract_start_date: contracts[0]?.StartDate || null,
+        contract_end_date: contracts[0]?.EndDate || null,
       },
+      contracts: contracts.map((c: any) => ({
+        id: c.Id,
+        contract_number: c.ContractNumber,
+        status: c.Status,
+        start_date: c.StartDate,
+        end_date: c.EndDate,
+        term_months: c.ContractTerm,
+        billing_location: [c.BillingCity, c.BillingState, c.BillingCountry].filter(Boolean).join(", "),
+      })),
       renewal_information: {
-        renewal_date: null,
+        renewal_date: contracts[0]?.EndDate || null,
         renewal_notice_period: null,
         auto_renewal: null,
+        contract_term_months: contracts[0]?.ContractTerm,
       },
       next_steps: {
         next_step: opportunity.NextStep,
+        description: opportunity.Description,
       },
       customer_health: {
-        open_cases_count: null,
-        max_open_case_severity: null,
-        sla_breach: null,
-        customer_health: null,
+        open_cases_count: cases.length,
+        max_open_case_severity: maxCaseSeverity,
+        sla_breach: false,
+        customer_health: customerHealth,
       },
+      open_cases: cases.map((c: any) => ({
+        id: c.Id,
+        case_number: c.CaseNumber,
+        subject: c.Subject,
+        status: c.Status,
+        priority: c.Priority,
+        type: c.Type,
+        created_date: c.CreatedDate,
+      })),
       metadata: {
         retrieved_at: new Date().toISOString(),
         source: "salesforce",
         probability: opportunity.Probability,
+        created_date: opportunity.CreatedDate,
+        last_modified_date: opportunity.LastModifiedDate,
       },
     };
 
@@ -365,5 +465,304 @@ export const getSalesforceCommercialContext = flow({
   },
 });
 
-// Export only the Salesforce commercial context flow
-export default [getSalesforceCommercialContext];
+// Schema definition for Signing Likelihood validation
+const SigningLikelihoodSchema = zod
+  .object({
+    opportunityId: zod.string().optional(),
+    opportunityName: zod.string().optional(),
+    matterId: zod.union([zod.string(), zod.number()]).optional(),
+  })
+  .refine((data) => data.opportunityId || data.opportunityName || data.matterId, {
+    message: "Either opportunityId, opportunityName, or matterId must be provided",
+  });
+
+export const getSigningLikelihood = flow({
+  name: "Get Signing Likelihood",
+  stableKey: "get-signing-likelihood",
+  description:
+    "Estimate the likelihood of a deal being signed based on Salesforce opportunity data. " +
+    "Returns a probability score, risk factors, and recommendations to improve signing chances.",
+  isAgentFlow: true,
+  isSynchronous: true,
+  schemas: {
+    invoke: {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      $comment:
+        "Estimate signing likelihood based on Salesforce opportunity and account data",
+      title: "get-signing-likelihood",
+      type: "object",
+      properties: {
+        opportunityId: {
+          type: "string",
+          description:
+            "Salesforce Opportunity ID (e.g., 006XXXXXXXXXXXXXXX). Optional if opportunityName provided.",
+        },
+        opportunityName: {
+          type: "string",
+          description:
+            "Opportunity Name to search for. Optional if opportunityId provided.",
+        },
+        matterId: {
+          type: "string",
+          description:
+            "Luminance matter ID. When provided, the integration resolves the counterparty name from Luminance tags.",
+        },
+      },
+      required: [],
+    },
+  },
+  onExecution: async (context, params) => {
+    let salesforceClient;
+    try {
+      salesforceClient = await createSalesforceClient(context);
+    } catch (authError) {
+      const msg = authError instanceof Error ? authError.message : String(authError);
+      context.logger.error("Salesforce authentication failed", { error: msg });
+      throw new Error(`Salesforce auth failed: ${msg}`);
+    }
+
+    const { opportunityId, opportunityName, matterId } =
+      SigningLikelihoodSchema.parse(params.onTrigger.results.body.data);
+
+    let resolvedOpportunityName = opportunityName;
+    const resolvedMatterId = matterId ? String(matterId) : "";
+
+    // Same Luminance lookup logic as commercial context
+    if (!opportunityId && resolvedMatterId) {
+      const { baseUrl: luminanceBaseUrl, clientId: luminanceClientId, clientSecret: luminanceClientSecret } =
+        getLuminanceAuth(context);
+      const luminanceDivisionId = getConfigString(context, "Luminance Division");
+      if (!luminanceBaseUrl || !luminanceClientId || !luminanceClientSecret) {
+        throw new Error("Luminance credentials missing for matterId lookup.");
+      }
+      if (!luminanceDivisionId) {
+        throw new Error("Luminance Division is required for matterId lookup.");
+      }
+
+      const tagKey = getConfigString(context, "Counterparty Name Tag");
+      if (!tagKey) {
+        throw new Error("Counterparty tag key missing. Configure the tag picker.");
+      }
+
+      const token = await fetchLuminanceToken(
+        luminanceBaseUrl,
+        luminanceClientId,
+        luminanceClientSecret
+      );
+      const annotations = await fetchMatterAnnotations(
+        luminanceBaseUrl,
+        token,
+        luminanceDivisionId,
+        resolvedMatterId
+      );
+      resolvedOpportunityName = resolveCounterpartyFromAnnotations(annotations, tagKey);
+      if (!resolvedOpportunityName) {
+        throw new Error(`Counterparty tag "${tagKey}" not found on matter ${resolvedMatterId}.`);
+      }
+    }
+
+    context.logger.info("Getting signing likelihood", {
+      opportunityId,
+      opportunityName: resolvedOpportunityName,
+      matterId: resolvedMatterId || undefined,
+    });
+
+    const escapeSoqlString = (str: string): string => str.replace(/'/g, "''");
+
+    // Query opportunity with key fields for likelihood assessment
+    const likelihoodFields = `
+      Id, Name, StageName, CloseDate, Amount, Probability, NextStep, Type,
+      ForecastCategory, ForecastCategoryName, IsClosed, IsWon, ExpectedRevenue,
+      AccountId, Account.Name, Account.Type, Account.Industry, Account.Rating,
+      Account.AnnualRevenue, CreatedDate, LastModifiedDate
+    `.trim().replace(/\s+/g, ' ');
+
+    let opportunity: any;
+
+    if (opportunityId) {
+      if (!/^[a-zA-Z0-9]{15,18}$/.test(opportunityId)) {
+        throw new Error(`Invalid Salesforce Opportunity ID format: ${opportunityId}`);
+      }
+      const soqlQuery = `SELECT ${likelihoodFields} FROM Opportunity WHERE Id = '${opportunityId}' LIMIT 1`;
+      const queryResult = await salesforceClient.get("/services/data/v58.0/query", { params: { q: soqlQuery } });
+      if (!queryResult.data.records?.length) {
+        throw new Error(`Opportunity with ID ${opportunityId} not found`);
+      }
+      opportunity = queryResult.data.records[0];
+    } else if (resolvedOpportunityName) {
+      const escapedName = escapeSoqlString(resolvedOpportunityName);
+      const soqlQuery = `SELECT ${likelihoodFields} FROM Opportunity WHERE Name LIKE '%${escapedName}%' ORDER BY CloseDate DESC LIMIT 1`;
+      const queryResult = await salesforceClient.get("/services/data/v58.0/query", { params: { q: soqlQuery } });
+      if (!queryResult.data.records?.length) {
+        throw new Error(`Opportunity with name "${resolvedOpportunityName}" not found`);
+      }
+      opportunity = queryResult.data.records[0];
+    } else {
+      throw new Error("Either opportunityId, opportunityName, or matterId must be provided");
+    }
+
+    // Count open cases for the account
+    let openCasesCount = 0;
+    if (opportunity.AccountId) {
+      try {
+        const caseQuery = `SELECT COUNT(Id) cnt FROM Case WHERE AccountId = '${opportunity.AccountId}' AND IsClosed = false`;
+        const caseResult = await salesforceClient.get("/services/data/v58.0/query", { params: { q: caseQuery } });
+        openCasesCount = caseResult.data.records?.[0]?.cnt || 0;
+      } catch (e) {
+        context.logger.warn("Failed to count cases", { error: (e as Error).message });
+      }
+    }
+
+    // Calculate signing likelihood score
+    const account = opportunity.Account || {};
+    let baseScore = opportunity.Probability || 50;
+    const riskFactors: string[] = [];
+    const positiveFactors: string[] = [];
+    const recommendations: string[] = [];
+
+    // Stage-based adjustments
+    const stageLower = (opportunity.StageName || "").toLowerCase();
+    if (stageLower.includes("closed won")) {
+      baseScore = 100;
+      positiveFactors.push("Deal already closed and won");
+    } else if (stageLower.includes("closed")) {
+      baseScore = 0;
+      riskFactors.push("Deal is closed (lost or other)");
+    } else if (stageLower.includes("negotiation") || stageLower.includes("contract")) {
+      baseScore = Math.max(baseScore, 70);
+      positiveFactors.push("Deal in advanced negotiation/contract stage");
+    } else if (stageLower.includes("proposal") || stageLower.includes("quote")) {
+      positiveFactors.push("Proposal/quote stage - active engagement");
+    } else if (stageLower.includes("qualification") || stageLower.includes("discovery")) {
+      riskFactors.push("Still in early qualification stage");
+      recommendations.push("Accelerate discovery to understand requirements");
+    }
+
+    // Forecast category adjustments
+    const forecast = (opportunity.ForecastCategoryName || opportunity.ForecastCategory || "").toLowerCase();
+    if (forecast.includes("commit")) {
+      baseScore = Math.min(baseScore + 15, 95);
+      positiveFactors.push("Forecast: Committed deal");
+    } else if (forecast.includes("best case")) {
+      baseScore = Math.min(baseScore + 5, 90);
+      positiveFactors.push("Forecast: Best case scenario");
+    } else if (forecast.includes("pipeline")) {
+      riskFactors.push("Still in pipeline, not yet committed");
+    }
+
+    // Account quality adjustments
+    if (account.Rating === "Hot") {
+      baseScore = Math.min(baseScore + 10, 95);
+      positiveFactors.push("Account rated as Hot");
+    } else if (account.Rating === "Cold") {
+      baseScore = Math.max(baseScore - 10, 10);
+      riskFactors.push("Account rated as Cold");
+      recommendations.push("Re-engage stakeholders and validate interest");
+    }
+
+    // Revenue/size adjustments
+    if (account.AnnualRevenue && account.AnnualRevenue > 10000000) {
+      positiveFactors.push("Enterprise account (>$10M annual revenue)");
+    }
+
+    // Close date proximity
+    const closeDate = opportunity.CloseDate ? new Date(opportunity.CloseDate) : null;
+    const today = new Date();
+    if (closeDate) {
+      const daysUntilClose = Math.ceil((closeDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysUntilClose < 0) {
+        riskFactors.push(`Close date overdue by ${Math.abs(daysUntilClose)} days`);
+        recommendations.push("Update close date to reflect current timeline");
+        baseScore = Math.max(baseScore - 15, 10);
+      } else if (daysUntilClose <= 7) {
+        positiveFactors.push("Close date within 7 days");
+      } else if (daysUntilClose <= 30) {
+        positiveFactors.push("Close date within 30 days");
+      } else if (daysUntilClose > 90) {
+        riskFactors.push("Close date more than 90 days out");
+      }
+    }
+
+    // Open cases impact
+    if (openCasesCount > 5) {
+      riskFactors.push(`${openCasesCount} open support cases - potential customer satisfaction issues`);
+      recommendations.push("Address open support tickets to improve relationship");
+      baseScore = Math.max(baseScore - 10, 10);
+    } else if (openCasesCount > 0) {
+      riskFactors.push(`${openCasesCount} open support case(s)`);
+    }
+
+    // Next step presence
+    if (!opportunity.NextStep) {
+      riskFactors.push("No next step defined");
+      recommendations.push("Define clear next steps to maintain momentum");
+    } else {
+      positiveFactors.push("Clear next steps defined");
+    }
+
+    // Clamp final score
+    const finalScore = Math.max(0, Math.min(100, Math.round(baseScore)));
+
+    // Determine confidence level
+    let confidence: "low" | "medium" | "high" = "medium";
+    if (riskFactors.length === 0 && positiveFactors.length >= 3) {
+      confidence = "high";
+    } else if (riskFactors.length > 3) {
+      confidence = "low";
+    }
+
+    // Generate overall assessment
+    let assessment: string;
+    if (finalScore >= 80) {
+      assessment = "High likelihood of signing. Deal is progressing well with strong positive indicators.";
+    } else if (finalScore >= 60) {
+      assessment = "Moderate likelihood of signing. Some positive indicators but attention needed on risk factors.";
+    } else if (finalScore >= 40) {
+      assessment = "Uncertain outcome. Multiple risk factors present - recommend focused attention on this deal.";
+    } else {
+      assessment = "Low likelihood of signing without intervention. Significant blockers need to be addressed.";
+    }
+
+    const result = {
+      opportunity_id: opportunity.Id,
+      opportunity_name: opportunity.Name,
+      signing_likelihood: {
+        score: finalScore,
+        confidence,
+        assessment,
+        salesforce_probability: opportunity.Probability,
+      },
+      positive_factors: positiveFactors,
+      risk_factors: riskFactors,
+      recommendations: recommendations.length > 0 ? recommendations : ["Continue current engagement strategy"],
+      deal_context: {
+        stage: opportunity.StageName,
+        forecast_category: opportunity.ForecastCategoryName || opportunity.ForecastCategory,
+        close_date: opportunity.CloseDate,
+        amount: opportunity.Amount,
+        expected_revenue: opportunity.ExpectedRevenue,
+        next_step: opportunity.NextStep,
+        account_name: account.Name,
+        account_industry: account.Industry,
+        account_rating: account.Rating,
+        open_cases_count: openCasesCount,
+      },
+      metadata: {
+        retrieved_at: new Date().toISOString(),
+        source: "salesforce",
+        model_version: "1.0",
+      },
+    };
+
+    context.logger.info("Signing likelihood calculated", {
+      opportunityId: result.opportunity_id,
+      score: result.signing_likelihood.score,
+      confidence: result.signing_likelihood.confidence,
+    });
+
+    return { data: result };
+  },
+});
+
+// Export both flows
+export default [getSalesforceCommercialContext, getSigningLikelihood];
