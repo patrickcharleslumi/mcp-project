@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 from mcp.clients.salesforce_mcp import SalesforceMcpClient
 from mcp.config import config
@@ -43,6 +43,14 @@ class SalesforceOpportunity:
     max_open_case_severity: Optional[str]
     sla_breach: Optional[bool]
     customer_health: Optional[str]
+    # Additional deal status fields
+    is_closed: Optional[bool]
+    is_won: Optional[bool]
+    forecast_category: Optional[str]
+    probability: Optional[float]
+    expected_revenue: Optional[float]
+    opportunity_type: Optional[str]
+    lead_source: Optional[str]
 
 
 def _parse_bool(value: Optional[str]) -> Optional[bool]:
@@ -132,6 +140,9 @@ class SalesforceContextService:
         next_steps = payload.get("next_steps") if isinstance(payload.get("next_steps"), dict) else {}
         customer_health = payload.get("customer_health") if isinstance(payload.get("customer_health"), dict) else {}
 
+        # Extract metadata for probability
+        metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+
         return SalesforceOpportunity(
             opportunity_id=opportunity_id,
             opportunity_name=opportunity_name,
@@ -163,4 +174,180 @@ class SalesforceContextService:
             max_open_case_severity=_normalize(str(customer_health.get("max_open_case_severity") or "")) or None,
             sla_breach=_parse_bool(str(customer_health.get("sla_breach") or "")),
             customer_health=_normalize(str(customer_health.get("customer_health") or "")) or None,
+            # Deal status fields
+            is_closed=_parse_bool(str(deal_stage.get("is_closed") or "")),
+            is_won=_parse_bool(str(deal_stage.get("is_won") or "")),
+            forecast_category=_normalize(str(deal_stage.get("forecast_category") or "")) or None,
+            probability=_parse_float(str(metadata.get("probability") or "")),
+            expected_revenue=_parse_float(str(financial_metrics.get("expected_revenue") or "")),
+            opportunity_type=_normalize(str(competitive_landscape.get("opportunity_type") or "")) or None,
+            lead_source=_normalize(str(competitive_landscape.get("lead_source") or "")) or None,
         )
+
+    async def get_signing_likelihood(
+        self,
+        counterparty_name: Optional[str],
+        matter_name: Optional[str] = None,
+    ) -> Optional[dict[str, Any]]:
+        """Get signing likelihood assessment for an opportunity."""
+        if not self.client.enabled:
+            return None
+
+        query_candidates = [counterparty_name, matter_name]
+        query = next((value for value in query_candidates if value and value.strip()), None)
+        if not query:
+            return None
+
+        payload = await self.client.get_signing_likelihood(query)
+        return payload
+
+    async def dynamic_search(
+        self,
+        filters: dict[str, Any],
+        current_opportunity_name: Optional[str] = None,
+    ) -> list[dict[str, Any]]:
+        """Dynamic search for opportunities based on flexible filters.
+        
+        Filters can include:
+        - stage: Filter by deal stage (e.g., "Closed Won", "Negotiation")
+        - region: Filter by region/location
+        - health: Filter by customer health (Green, Yellow, Red)
+        - min_probability: Minimum win probability
+        - search_term: General search term
+        
+        Returns raw dictionaries for maximum flexibility.
+        """
+        if not self.client.enabled:
+            return []
+
+        # Known companies to search (from user's actual Salesforce tenant)
+        # In production, this would be a proper SOQL query with filters
+        known_companies = [
+            # Actual companies from Salesforce tenant (Accounts & Opportunities)
+            "ACME Logistics",
+            "ACME Corporation",
+            "ACME",
+            "Burlington Textiles",
+            "Burlington",
+            "Dickenson",
+            "Dickenson plc",
+            "Dickenson Mobile",
+            "Edge Communications",
+            "Edge",
+            "Express Logistics",
+            "Express",
+            "GenePoint",
+            "Globex Manufacturing",
+            "Globex",
+            "Grand Hotels",
+            "Grand Hotels Guest",
+            "Nimbus Health",
+            "Nimbus",
+            "Orbit FinTech",
+            "Orbit",
+            "Pyramid Construction",
+            "Pyramid",
+            "sForce",
+            "United Oil",
+            "United Oil & Gas",
+            "Helios Energy",
+            "Helios",
+            # Additional search terms
+            "Sample Account",
+            "Mobile Generators",
+            "Portable Generators",
+            "CLM",
+            "Salesforce",
+        ]
+
+        results: list[dict[str, Any]] = []
+
+        for company in known_companies:
+            try:
+                payload = await self.client.get_commercial_context(company)
+                if not payload:
+                    continue
+
+                # Skip current opportunity
+                opp_name = payload.get("opportunity_name", "")
+                if current_opportunity_name and opp_name == current_opportunity_name:
+                    continue
+
+                # Apply filters
+                if not self._matches_filters(payload, filters):
+                    continue
+
+                # Return comprehensive data for the LLM to interpret
+                results.append({
+                    "opportunity_name": opp_name,
+                    "opportunity_id": payload.get("opportunity_id"),
+                    "stage": payload.get("deal_stage", {}).get("stage_name"),
+                    "close_date": payload.get("deal_stage", {}).get("close_date"),
+                    "is_won": payload.get("deal_stage", {}).get("is_won"),
+                    "is_closed": payload.get("deal_stage", {}).get("is_closed"),
+                    "probability": payload.get("metadata", {}).get("probability"),
+                    "forecast_category": payload.get("deal_stage", {}).get("forecast_category"),
+                    "customer_health": payload.get("customer_health", {}).get("customer_health"),
+                    "region": payload.get("organization", {}).get("region"),
+                    "business_unit": payload.get("organization", {}).get("business_unit"),
+                    "acv": payload.get("financial_metrics", {}).get("acv"),
+                    "arr": payload.get("financial_metrics", {}).get("arr"),
+                    "account": payload.get("account", {}),
+                    "contracts": payload.get("contracts", []),
+                    "open_cases_count": payload.get("customer_health", {}).get("open_cases_count"),
+                })
+
+            except Exception as e:
+                logger.debug(f"Failed to query {company}: {e}")
+                continue
+
+        return results
+
+    def _matches_filters(self, payload: dict[str, Any], filters: dict[str, Any]) -> bool:
+        """Check if an opportunity matches the given filters."""
+        if not filters:
+            return True
+
+        deal_stage = payload.get("deal_stage", {})
+        org = payload.get("organization", {})
+        health = payload.get("customer_health", {})
+        metadata = payload.get("metadata", {})
+
+        # Stage filter
+        if "stage" in filters:
+            opp_stage = (deal_stage.get("stage_name") or "").lower()
+            filter_stage = filters["stage"].lower()
+            if filter_stage not in opp_stage and opp_stage not in filter_stage:
+                return False
+
+        # Region filter
+        if "region" in filters:
+            opp_region = (org.get("region") or "").lower()
+            filter_region = filters["region"].lower()
+            if filter_region not in opp_region:
+                return False
+
+        # Health filter
+        if "health" in filters:
+            opp_health = (health.get("customer_health") or "").lower()
+            filter_health = filters["health"].lower()
+            if filter_health not in opp_health:
+                return False
+
+        # Probability filter
+        if "min_probability" in filters:
+            opp_prob = metadata.get("probability") or 0
+            if opp_prob < filters["min_probability"]:
+                return False
+
+        # Is closed filter
+        if "is_closed" in filters:
+            if deal_stage.get("is_closed") != filters["is_closed"]:
+                return False
+
+        # Is won filter
+        if "is_won" in filters:
+            if deal_stage.get("is_won") != filters["is_won"]:
+                return False
+
+        return True

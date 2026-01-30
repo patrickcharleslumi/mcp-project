@@ -273,30 +273,95 @@ export const getSalesforceCommercialContext = flow({
       opportunity = queryResult.data.records[0];
     } else if (resolvedOpportunityName) {
       const escapedName = escapeSoqlString(resolvedOpportunityName);
+      
+      // First, try to find an Opportunity
       const soqlQuery = `SELECT ${opportunityFields} FROM Opportunity WHERE Name LIKE '%${escapedName}%' ORDER BY CloseDate DESC LIMIT 1`;
-
-      context.logger.info("Executing SOQL query", { query: soqlQuery });
+      context.logger.info("Executing Opportunity SOQL query", { query: soqlQuery });
 
       let queryResult;
       try {
         queryResult = await salesforceClient.get(
           "/services/data/v58.0/query",
-          {
-            params: { q: soqlQuery },
-          },
+          { params: { q: soqlQuery } },
         );
       } catch (queryError: any) {
         const errorMsg = queryError?.response?.data?.message || queryError?.message || String(queryError);
-        const errorBody = JSON.stringify(queryError?.response?.data || {});
-        context.logger.error("Salesforce SOQL query failed", { error: errorMsg, body: errorBody, query: soqlQuery });
-        throw new Error(`Salesforce query failed: ${errorMsg}. Query: ${soqlQuery}`);
+        context.logger.warn("Opportunity query failed, trying Account search", { error: errorMsg });
+        queryResult = { data: { records: [] } };
       }
 
-      if (!queryResult.data.records || queryResult.data.records.length === 0) {
-        throw new Error(`Opportunity with name "${resolvedOpportunityName}" not found`);
+      if (queryResult.data.records && queryResult.data.records.length > 0) {
+        opportunity = queryResult.data.records[0];
+      } else {
+        // Fallback: Search for Account by name
+        context.logger.info("No Opportunity found, searching Accounts", { name: resolvedOpportunityName });
+        
+        const accountFields = `
+          Id, Name, Type, Industry, Website, Phone, 
+          BillingCity, BillingState, BillingCountry,
+          AnnualRevenue, NumberOfEmployees, Description, Rating, CreatedDate
+        `.trim().replace(/\s+/g, ' ');
+        
+        const accountQuery = `SELECT ${accountFields} FROM Account WHERE Name LIKE '%${escapedName}%' LIMIT 1`;
+        
+        let accountResult;
+        try {
+          accountResult = await salesforceClient.get(
+            "/services/data/v58.0/query",
+            { params: { q: accountQuery } },
+          );
+        } catch (accountError: any) {
+          const errorMsg = accountError?.response?.data?.message || accountError?.message || String(accountError);
+          throw new Error(`No Opportunity or Account found for "${resolvedOpportunityName}". Error: ${errorMsg}`);
+        }
+        
+        if (!accountResult.data.records || accountResult.data.records.length === 0) {
+          throw new Error(`No Opportunity or Account found for "${resolvedOpportunityName}"`);
+        }
+        
+        const account = accountResult.data.records[0];
+        context.logger.info("Found Account", { accountId: account.Id, name: account.Name });
+        
+        // Check if this Account has any Opportunities
+        const accOppsQuery = `SELECT ${opportunityFields} FROM Opportunity WHERE AccountId = '${account.Id}' ORDER BY CloseDate DESC LIMIT 1`;
+        try {
+          const accOppsResult = await salesforceClient.get(
+            "/services/data/v58.0/query",
+            { params: { q: accOppsQuery } },
+          );
+          if (accOppsResult.data.records && accOppsResult.data.records.length > 0) {
+            opportunity = accOppsResult.data.records[0];
+          } else {
+            // No Opportunity - create a synthetic one from Account data
+            opportunity = {
+              Id: null,
+              Name: `${account.Name} (Account Only)`,
+              StageName: "No Opportunity",
+              CloseDate: null,
+              Amount: null,
+              Probability: null,
+              IsClosed: false,
+              IsWon: false,
+              AccountId: account.Id,
+              Account: account,
+            };
+          }
+        } catch {
+          // No Opportunities for this Account - create synthetic record
+          opportunity = {
+            Id: null,
+            Name: `${account.Name} (Account Only)`,
+            StageName: "No Opportunity",
+            CloseDate: null,
+            Amount: null,
+            Probability: null,
+            IsClosed: false,
+            IsWon: false,
+            AccountId: account.Id,
+            Account: account,
+          };
+        }
       }
-
-      opportunity = queryResult.data.records[0];
     } else {
       throw new Error(
         "Either opportunityId, opportunityName, or matterId must be provided",

@@ -46,12 +46,15 @@ class SalesforceMcpClient:
         cleaned = query.strip()
         # Prefer opportunityId when the matter name looks like a Salesforce ID.
         # Fallback to opportunityName for fuzzy matching in the Prismatic flow.
+        # NOTE: We don't send matterId because Prismatic can't reach localhost Luminance
+        # The local MCP wrapper already resolves counterparty name before calling this
         if re.fullmatch(r"006[0-9A-Za-z]{12,15}", cleaned):
             payload = {"opportunityId": cleaned}
         else:
             payload = {"opportunityName": cleaned}
-        if matter_id is not None:
-            payload["matterId"] = matter_id
+        # Don't send matterId - Prismatic can't call back to local Luminance
+        # if matter_id is not None:
+        #     payload["matterId"] = matter_id
         try:
             response = await self.client.post(config.salesforce_mcp_commercial_context_path, json=payload)
             response.raise_for_status()
@@ -69,6 +72,11 @@ class SalesforceMcpClient:
             return None
 
         if isinstance(data, dict):
+            # Prismatic returns data directly (not wrapped in "data" key)
+            # Check for opportunity_id to confirm it's valid Salesforce data
+            if data.get("opportunity_id") or data.get("opportunity_name"):
+                return data
+            # Also try wrapped format for compatibility
             payload_data = data.get("data")
             if isinstance(payload_data, dict):
                 return payload_data
@@ -84,12 +92,14 @@ class SalesforceMcpClient:
             return None
 
         cleaned = query.strip()
+        # NOTE: We don't send matterId because Prismatic can't reach localhost Luminance
         if re.fullmatch(r"006[0-9A-Za-z]{12,15}", cleaned):
             payload = {"opportunityId": cleaned}
         else:
             payload = {"opportunityName": cleaned}
-        if matter_id is not None:
-            payload["matterId"] = matter_id
+        # Don't send matterId - Prismatic can't call back to local Luminance
+        # if matter_id is not None:
+        #     payload["matterId"] = matter_id
 
         try:
             response = await self.client.post(config.salesforce_mcp_signing_likelihood_path, json=payload)
@@ -108,6 +118,10 @@ class SalesforceMcpClient:
             return None
 
         if isinstance(data, dict):
+            # Prismatic returns data directly (not wrapped in "data" key)
+            if data.get("opportunity_id") or data.get("signing_likelihood"):
+                return data
+            # Also try wrapped format for compatibility
             payload_data = data.get("data")
             if isinstance(payload_data, dict):
                 return payload_data

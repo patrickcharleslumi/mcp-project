@@ -40,10 +40,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     group_service = GroupInfoService(client)
     template_service = TemplateService(client)
     bulk_service = BulkEnrichService(group_service)
-    agent_service = None
+    
+    # Create LLM proxy client if enabled (optional - for AI recommendations)
     if config.llm_proxy_enabled:
         llm_proxy_client = LlmProxyClient()
-        agent_service = AiInsightsService(client, llm_proxy_client, salesforce_service)
+    
+    # Always create agent service (Salesforce data works without LLM proxy)
+    agent_service = AiInsightsService(client, llm_proxy_client, salesforce_service)
     app.include_router(
         build_router(
             version_service=version_service,
