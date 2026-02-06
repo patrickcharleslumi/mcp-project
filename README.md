@@ -38,58 +38,38 @@ An **AI agent** embedded within Luminance that:
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           LUMINANCE WEB APPLICATION                         │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                      AI Insights Panel                               │   │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │   │
-│  │  │ Deal Outcome │  │   Priority   │  │    Risk      │  [Widgets]    │   │
-│  │  │    Widget    │  │   Action     │  │  Mitigation  │               │   │
-│  │  └──────────────┘  └──────────────┘  └──────────────┘               │   │
-│  │  ┌──────────────────────────────────────────────────────────────┐   │   │
-│  │  │              AI Agent Chat Interface                          │   │   │
-│  │  │  User: "Which companies are in a similar stage?"             │   │   │
-│  │  │  Agent: 📊 RESULTS: Burlington Textiles, Express Logistics...│   │   │
-│  │  └──────────────────────────────────────────────────────────────┘   │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         MCP HTTP WRAPPER (FastAPI)                          │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐ │
-│  │  AI Insights    │  │   Salesforce    │  │      LLM Proxy Client       │ │
-│  │    Service      │──│    Context      │──│  (Claude/GPT via Proxy)     │ │
-│  │                 │  │    Service      │  │                             │ │
-│  └─────────────────┘  └─────────────────┘  └─────────────────────────────┘ │
-│         │                     │                                             │
-│         │                     ▼                                             │
-│         │    ┌─────────────────────────────────────────────────────────┐   │
-│         │    │              SALESFORCE MCP CLIENT                       │   │
-│         │    │   • Caching (60s TTL) • Parallel requests (asyncio)     │   │
-│         │    │   • Dynamic filtering • Deduplication                    │   │
-│         │    └─────────────────────────────────────────────────────────┘   │
-│         │                     │                                             │
-└─────────┼─────────────────────┼─────────────────────────────────────────────┘
-          │                     │
-          ▼                     ▼
-┌─────────────────────┐  ┌─────────────────────────────────────────────────────┐
-│   LUMINANCE API     │  │              PRISMATIC INTEGRATION PLATFORM         │
-│  • Matters          │  │  ┌─────────────────────────────────────────────┐   │
-│  • Documents        │  │  │        SALESFORCE MCP COMPONENT             │   │
-│  • Annotations      │  │  │  • JWT Bearer Authentication               │   │
-│  └───────────────── │  │  │  • SOQL Queries (Opportunities, Accounts)  │   │
-└─────────────────────┘  │  │  • Contract & Case retrieval               │   │
-                         │  │  • Signing Likelihood calculation          │   │
-                         │  └─────────────────────────────────────────────┘   │
-                         └─────────────────────────────────────────────────────┘
-                                            │
-                                            ▼
-                         ┌─────────────────────────────────────────────────────┐
-                         │                 SALESFORCE CRM                       │
-                         │  Opportunities │ Accounts │ Contracts │ Cases       │
-                         └─────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Luminance["Luminance Web Application"]
+        subgraph Panel["AI Insights Panel"]
+            W1["Deal Outcome"]
+            W2["Priority Action"]
+            W3["Risk Mitigation"]
+            Chat["AI Agent Chat"]
+        end
+    end
+
+    subgraph MCP["MCP HTTP Wrapper (FastAPI)"]
+        AIS["AI Insights Service"]
+        SCS["Salesforce Context Service"]
+        LLM["LLM Proxy<br/>(Claude/GPT)"]
+        SFClient["Salesforce MCP Client<br/>Cache, Parallel, Dedup"]
+        AIS --> SCS --> LLM
+        SCS --> SFClient
+    end
+
+    LAPI["Luminance API<br/>Matters, Docs, Annotations"]
+
+    subgraph Prismatic["Prismatic Platform"]
+        SFComp["SF MCP Component<br/>JWT, SOQL, Signing<br/>Likelihood"]
+    end
+
+    SF["Salesforce CRM<br/>Opps, Accts, Contracts, <br/>Cases"]
+
+    Luminance --> MCP
+    MCP --> LAPI
+    MCP --> Prismatic
+    Prismatic --> SF
 ```
 
 ---
