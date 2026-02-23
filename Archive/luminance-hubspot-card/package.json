@@ -1,0 +1,17 @@
+{
+  "name": "luminance-hubspot-card",
+  "version": "1.0.0",
+  "description": "HubSpot CRM Card for Luminance contract generation",
+  "main": "index.js",
+  "scripts": {
+    "dev": "hs project dev",
+    "upload": "hs project upload",
+    "deploy": "hs project deploy"
+  },
+  "keywords": ["hubspot", "luminance", "crm-card"],
+  "author": "Luminance",
+  "license": "MIT",
+  "dependencies": {
+    "@hubspot/ui-extensions": "^0.0.1-beta.1"
+  }
+}

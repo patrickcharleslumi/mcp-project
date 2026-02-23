@@ -1,0 +1,20 @@
+{
+  "crm": {
+    "cards": [
+      {
+        "type": "crm-card",
+        "data": {
+          "title": "Luminance Contracts",
+          "location": "crm.record.deal.right",
+          "module": {
+            "file": "extensions/ContractCard.jsx"
+          }
+        },
+        "scopes": [
+          "crm.objects.deals.read",
+          "crm.objects.deals.write"
+        ]
+      }
+    ]
+  }
+}

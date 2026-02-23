@@ -1,0 +1,20 @@
+{
+  "name": "luminance-hubspot-middleware",
+  "version": "1.0.0",
+  "description": "Middleware for Luminance HubSpot integration",
+  "main": "api/trigger.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "@hubspot/api-client": "^11.0.0",
+    "@vercel/kv": "^1.0.1"
+  },
+  "overrides": {
+    "tar": "^7.5.0"
+  },
+  "engines": {
+    "node": ">=18.x"
+  }
+}

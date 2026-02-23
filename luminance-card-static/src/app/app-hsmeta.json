@@ -1,0 +1,36 @@
+{
+  "uid": "luminance_card_static_app",
+  "type": "app",
+  "config": {
+    "description": "Generate Luminance contracts directly from HubSpot Deal records",
+    "name": "Luminance Contract Generator",
+    "distribution": "marketplace",
+    "auth": {
+      "type": "oauth",
+      "requiredScopes": [
+        "crm.objects.deals.read",
+        "crm.objects.deals.write",
+        "files"
+      ],
+      "optionalScopes": [],
+      "conditionallyRequiredScopes": [],
+      "redirectUrls": [
+        "https://luminance-hubspot-middleware.vercel.app/api/oauth-callback"
+      ]
+    },
+    "permittedUrls": {
+      "fetch": [
+        "https://api.hubapi.com",
+        "https://luminance-hubspot-middleware.vercel.app"
+      ],
+      "iframe": [],
+      "img": []
+    },
+    "support": {
+      "supportEmail": "support@example.com",
+      "documentationUrl": "https://example.com/docs",
+      "supportUrl": "https://example.com/support",
+      "supportPhone": "+18005555555"
+    }
+  }
+}

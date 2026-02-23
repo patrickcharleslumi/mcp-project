@@ -1,0 +1,12 @@
+{
+  "uid": "luminance_card_static_card",
+  "type": "card",
+  "config": {
+    "name": "Luminance Contracts",
+    "location": "crm.record.sidebar",
+    "entrypoint": "/app/cards/ContractCardV2.jsx",
+    "objectTypes": [
+      "deals"
+    ]
+  }
+}

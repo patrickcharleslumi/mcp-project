@@ -1,0 +1,12 @@
+{
+  "uid": "luminance_hubspot_card_card",
+  "type": "card",
+  "config": {
+    "name": "Luminance Contracts",
+    "location": "crm.record.sidebar",
+    "entrypoint": "/app/cards/NewCard.jsx",
+    "objectTypes": [
+      "deals"
+    ]
+  }
+}
