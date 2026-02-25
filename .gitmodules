@@ -1,0 +1,3 @@
+[submodule "components/salesforce-mcp"]
+	path = components/salesforce-mcp
+	url = https://github.com/patrickcharleslumi/salesforce-MCP.git
